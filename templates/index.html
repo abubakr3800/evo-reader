@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>evostudy — DIALux evo Project Reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{ --sc-red:#eb1b26; --sc-dark-red:#a40e16; --sc-black:#000; --sc-grey:#cccccc;
+    --ink:#111; --sub:#6b7280; --border:#e3e5e9; }
+  *{box-sizing:border-box}
+  body{margin:0;background:#f5f6f8;color:var(--ink);
+    font-family:'Poppins',-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  header{background:#fff;border-bottom:3px solid var(--sc-red);padding:22px 30px;}
+  header h1{margin:0;font-family:'Anton',sans-serif;font-weight:400;letter-spacing:.02em;
+    text-transform:uppercase;font-size:22px}
+  header .sub{color:var(--sub);font-size:13px;margin-top:4px}
+  main{max-width:720px;margin:60px auto;padding:0 20px;}
+  .card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:36px;
+    box-shadow:0 1px 3px rgba(0,0,0,.04);}
+  .drop{border:2px dashed #d0d3d9;border-radius:12px;padding:40px;text-align:center;
+    color:var(--sub);transition:.15s;}
+  .drop.drag{border-color:var(--sc-red);background:#fff5f5;color:var(--sc-red)}
+  input[type=file]{display:block;margin:16px auto 0;}
+  .opt-row{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:13.5px;color:var(--sub)}
+  .opt-row.sub-opt{margin-top:10px;margin-left:24px;display:none}
+  button{margin-top:22px;width:100%;background:linear-gradient(90deg,var(--sc-dark-red),var(--sc-red));
+    color:#fff;border:none;border-radius:8px;padding:13px 18px;font-size:15px;font-weight:600;
+    cursor:pointer;}
+  button:hover{filter:brightness(1.05)}
+  ul.steps{color:var(--sub);font-size:13.5px;line-height:1.8;padding-left:18px}
+  .hint{font-size:12.5px;color:var(--sub);margin-top:14px;text-align:center}
+
+  .jobs{margin-top:28px}
+  .jobs h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--sub);margin:0 0 12px;font-weight:600}
+  .job-row{display:flex;align-items:center;gap:14px;background:#fff;
+    border:1px solid var(--border);border-radius:10px;padding:13px 16px;margin-bottom:8px;}
+  .job-main{flex:1;min-width:0}
+  .job-name{font-size:14px;font-weight:600;color:var(--ink);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .job-meta{font-size:12px;color:var(--sub);margin-top:2px}
+  .badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:100px;
+    text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+  .badge.done{background:#e6f7ec;color:#1a7f45}
+  .badge.failed{background:#fdeaea;color:var(--sc-dark-red)}
+  .badge.running{background:#fff4e0;color:#a15c00}
+  .badge.unknown{background:#eef0f3;color:var(--sub)}
+  .job-open{flex-shrink:0;text-decoration:none;font-size:13px;font-weight:600;
+    color:var(--sc-red);border:1px solid var(--sc-red);border-radius:7px;
+    padding:7px 14px;white-space:nowrap;}
+  .job-open:hover{background:var(--sc-red);color:#fff}
+  .no-jobs{font-size:13px;color:var(--sub);text-align:center;padding:18px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>evostudy</h1>
+  <div class="sub">Read a DIALux evo (.evo) project without needing DIALux — upload, convert, extract, and see everything inside</div>
+</header>
+<main>
+  <div class="card">
+    <form action="/upload" method="post" enctype="multipart/form-data" id="f">
+      <div class="drop" id="drop">
+        Drop a <b>.evo</b> file here, or choose one below
+        <input type="file" name="evo_file" id="file" accept=".evo,.zip" required>
+      </div>
+
+      <label class="opt-row">
+        <input type="checkbox" name="make_pdf" value="1" id="make_pdf">
+        Also render a <b>PDF report</b> (slower, produces a single document) — leave
+        this off to just get the dashboard and data tables
+      </label>
+
+      <label class="opt-row">
+        <input type="checkbox" name="make_images" value="1" id="make_images">
+        Also export <b>PNG image sheets</b> + per-fixture views (slower, produces
+        individual images) — you can generate either of these later from the
+        results page if you decide you need them
+      </label>
+
+      <label id="skip_3d_row" class="opt-row sub-opt">
+        <input type="checkbox" name="skip_3d" value="1">
+        Skip 3D surface pages (projects with many rooms/result grids can have
+        a lot of these, and they're the slowest single page per grid)
+      </label>
+
+      <button type="submit">Convert, extract &amp; read project</button>
+    </form>
+    <div class="hint">This will: copy your .evo to a .zip twin → extract it → list every file with its type → recover luminaires, rooms and illuminance values → build a dashboard and CSV/JSON exports of every real number recovered. No PDF or PNG images are produced unless you ask for them above.</div>
+  </div>
+
+  <div class="jobs">
+    <h2>Previous jobs</h2>
+    {% if jobs %}
+      {% for job in jobs %}
+        <div class="job-row">
+          <div class="job-main">
+            <div class="job-name">{{ job.orig_name }}</div>
+            <div class="job-meta">{{ job.when }} · {{ job.job_id }} · {{ job.stage }}</div>
+          </div>
+          <span class="badge {{ job.status }}">{{ job.status }}</span>
+          {% if job.status == 'running' %}
+            <a class="job-open" href="{{ url_for('progress_page', job_id=job.job_id) }}">Open</a>
+          {% else %}
+            <a class="job-open" href="{{ url_for('result', job_id=job.job_id) }}">Open</a>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="no-jobs">No jobs yet — upload a .evo file above to get started.</div>
+    {% endif %}
+  </div>
+</main>
+<script>
+  const drop = document.getElementById('drop'), input = document.getElementById('file');
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag');}));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag');}));
+  drop.addEventListener('drop', e=>{ if(e.dataTransfer.files.length){ input.files = e.dataTransfer.files; }});
+
+  const makePdf = document.getElementById('make_pdf');
+  const makeImages = document.getElementById('make_images');
+  const skip3dRow = document.getElementById('skip_3d_row');
+  function updateSkip3dVisibility(){
+    skip3dRow.style.display = (makePdf.checked || makeImages.checked) ? 'flex' : 'none';
+  }
+  makePdf.addEventListener('change', updateSkip3dVisibility);
+  makeImages.addEventListener('change', updateSkip3dVisibility);
+</script>
+</body>
+</html>

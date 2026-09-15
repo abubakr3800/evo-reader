@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ orig_name }} — evostudy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sc-red:#eb1b26; --sc-dark-red:#a40e16; --ink:#111; --sub:#6b7280; --faint:#9aa1ab;
+    --border:#e3e5e9; --border-soft:#edeef1; --bg:#f5f6f8; --card:#fff;
+    --good:#1f9d55; --good-bg:#e7f7ee; --warn:#b8860b; --warn-bg:#fdf4e3;
+    --bad-bg:#fdeaea; --radius:12px; --radius-sm:8px;
+    --shadow:0 1px 2px rgba(17,17,17,.04), 0 1px 1px rgba(17,17,17,.03);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:'Poppins',-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  :focus-visible{outline:2px solid var(--sc-red);outline-offset:2px}
+  svg.icon{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;flex-shrink:0}
+
+  /* ---------- header ---------- */
+  header{background:#fff;border-bottom:3px solid var(--sc-red);padding:16px 28px;
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;
+    position:sticky;top:0;z-index:20}
+  .htitle{min-width:0}
+  header h1{margin:0;font-family:'Anton',sans-serif;font-weight:400;font-size:19px;
+    letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
+  .job-line{display:flex;align-items:center;gap:6px;color:var(--sub);font-size:12px;margin-top:3px}
+  .job-line code{background:var(--border-soft);padding:1px 6px;border-radius:5px;font-size:11px}
+  .copy-btn{background:none;border:none;color:var(--faint);cursor:pointer;padding:2px;
+    display:inline-flex;border-radius:4px;line-height:0}
+  .copy-btn:hover{color:var(--sc-red);background:var(--border-soft)}
+  header a.back{color:var(--sc-red);text-decoration:none;font-size:13px;font-weight:600;
+    display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  header a.back:hover{text-decoration:underline}
+
+  /* ---------- sub nav ---------- */
+  nav.subnav{position:sticky;top:57px;z-index:19;background:rgba(245,246,248,.92);
+    backdrop-filter:blur(6px);border-bottom:1px solid var(--border);
+    display:flex;gap:4px;padding:0 24px;overflow-x:auto;scrollbar-width:none}
+  nav.subnav::-webkit-scrollbar{display:none}
+  nav.subnav a{color:var(--sub);text-decoration:none;font-size:12.5px;font-weight:600;
+    padding:11px 12px;white-space:nowrap;border-bottom:2px solid transparent;letter-spacing:.01em}
+  nav.subnav a:hover{color:var(--ink)}
+  nav.subnav a.active{color:var(--sc-red);border-bottom-color:var(--sc-red)}
+
+  main{max-width:1180px;margin:0 auto;padding:26px 20px 90px}
+
+  /* ---------- summary cards ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:24px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px 18px;box-shadow:var(--shadow)}
+  .card .label{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--sub);
+    text-transform:uppercase;letter-spacing:.04em;margin-bottom:7px}
+  .card .value{font-size:23px;font-weight:700;line-height:1.15}
+  .card .value small{font-size:12.5px;font-weight:400;color:var(--sub)}
+
+  /* ---------- sections ---------- */
+  section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:20px 22px;margin-bottom:22px;scroll-margin-top:110px;box-shadow:var(--shadow)}
+  .section-head{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+    flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:14px}
+  section h2{margin:0;font-family:'Anton',sans-serif;font-weight:400;letter-spacing:.01em;font-size:15px}
+  .section-desc{margin:2px 0 0;color:var(--sub);font-size:12.5px}
+  .section-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+  /* ---------- table search ---------- */
+  .search-wrap{position:relative;min-width:180px}
+  .search-wrap svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--faint)}
+  .search-wrap input{width:100%;padding:7px 10px 7px 28px;border:1px solid var(--border);
+    border-radius:7px;font-size:12.5px;font-family:inherit;background:#fafafa;color:var(--ink)}
+  .search-wrap input:focus{background:#fff;border-color:var(--sc-red)}
+  .count-chip{font-size:11.5px;color:var(--sub);background:var(--border-soft);
+    padding:3px 9px;border-radius:100px;white-space:nowrap}
+
+  /* ---------- tables ---------- */
+  .table-wrap{overflow-x:auto;border-radius:var(--radius-sm)}
+  table{width:100%;border-collapse:collapse;font-size:12.8px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-soft);
+    vertical-align:top;white-space:nowrap}
+  td.wrap{white-space:normal}
+  th{color:var(--sub);font-weight:600;font-size:10.6px;text-transform:uppercase;
+    letter-spacing:.03em;position:sticky;top:0;background:#fff;user-select:none;
+    border-bottom:1px solid var(--border)}
+  th.sortable{cursor:pointer}
+  th.sortable:hover{color:var(--ink)}
+  th .arrow{display:inline-block;width:9px;opacity:.35;font-size:9px}
+  th.sort-asc .arrow,th.sort-desc .arrow{opacity:1;color:var(--sc-red)}
+  tbody tr:hover td{background:#fafafa}
+  tbody tr.no-match{display:none}
+  .empty-row td{color:var(--sub);text-align:center;padding:22px;font-size:12.5px}
+  code{background:var(--border-soft);padding:1px 6px;border-radius:5px;font-size:12px}
+
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:100px;
+    font-size:11px;font-weight:600;white-space:nowrap}
+  .badge.good{background:var(--good-bg);color:var(--good)}
+  .badge.warn{background:var(--warn-bg);color:var(--warn)}
+  .badge.bad{background:var(--bad-bg);color:var(--sc-red)}
+  .badge.neutral{background:var(--border-soft);color:var(--sub)}
+  [data-tip]{position:relative;cursor:help}
+  [data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;
+    transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 9px;border-radius:6px;
+    font-size:11px;font-weight:400;white-space:normal;width:200px;line-height:1.4;z-index:5;
+    box-shadow:0 4px 14px rgba(0,0,0,.18)}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;background:var(--sc-red);color:#fff;
+    text-decoration:none;padding:9px 16px;border:none;border-radius:8px;font-size:13.5px;
+    font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .btn:hover{background:var(--sc-dark-red)}
+  .btn.secondary{background:#fff;color:var(--ink);border:1px solid var(--border)}
+  .btn.secondary:hover{background:var(--border-soft);border-color:var(--faint)}
+  .btn.small{padding:7px 13px;font-size:12.5px}
+  .btn:disabled{opacity:.6;cursor:progress}
+  .btn .spinner{width:12px;height:12px;border:2px solid rgba(255,255,255,.4);
+    border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none}
+  .btn.secondary .spinner{border-color:rgba(17,17,17,.25);border-top-color:var(--ink)}
+  .btn.loading .spinner{display:inline-block}
+  .btn.loading .btn-label{opacity:.85}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .dash-frame-wrap{position:relative}
+  iframe{width:100%;height:900px;border:1px solid var(--border);border-radius:10px;
+    display:block;background:#fff}
+  .dash-frame-wrap.expanded iframe{height:1500px}
+
+  .warnbox,.errbox,.infobox{display:flex;gap:10px;border-radius:var(--radius-sm);
+    padding:12px 15px;font-size:13px;margin-bottom:16px;align-items:flex-start}
+  .warnbox{background:var(--warn-bg);border:1px solid #f1e2ba;color:#7a5b00}
+  .errbox{background:var(--bad-bg);border:1px solid #f4c6c6;color:#8a1a1a}
+  .infobox{background:#eef4fd;border:1px solid #cfe0f7;color:#1c4c8c}
+  .warnbox .icon,.errbox .icon,.infobox .icon{margin-top:1px;flex-shrink:0}
+  .errbox pre{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12.3px;
+    margin:6px 0 0;line-height:1.5}
+  .muted{color:var(--sub);font-size:12.5px}
+
+  details.candidates{margin-top:8px}
+  details.candidates summary{cursor:pointer;font-size:12px;color:var(--sub);font-weight:600;
+    list-style:none;display:flex;align-items:center;gap:5px}
+  details.candidates summary::-webkit-details-marker{display:none}
+  details.candidates summary .chev{transition:transform .15s}
+  details.candidates[open] summary .chev{transform:rotate(90deg)}
+  details.candidates ul{margin:8px 0 0 0;padding-left:0;list-style:none;font-size:12px;color:var(--sub)}
+  details.candidates li{padding:5px 0;border-top:1px solid var(--border-soft)}
+
+  .report-form{display:flex;flex-wrap:wrap;align-items:center;gap:16px;background:#fafafa;
+    border:1px solid var(--border);border-radius:9px;padding:13px 15px;margin-bottom:14px}
+  .report-form label{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink)}
+  .report-form .fields{display:flex;flex-wrap:wrap;gap:16px;flex:1}
+  .status-line{font-size:12px;color:var(--sub);margin-left:2px}
+
+  a.filelink{color:var(--sc-red);text-decoration:none;font-weight:600}
+  a.filelink:hover{text-decoration:underline}
+
+  @media (max-width:640px){
+    header{padding:14px 16px}
+    header h1{max-width:46vw;font-size:16.5px}
+    nav.subnav{padding:0 16px}
+    main{padding:18px 12px 90px}
+    section{padding:16px 14px}
+    .dash-frame-wrap.expanded iframe{height:1100px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="htitle">
+    <h1>{{ orig_name }}</h1>
+    <div class="job-line">
+      job <code id="jobIdCode">{{ job_id }}</code>
+      <button class="copy-btn" type="button" data-copy="{{ job_id }}" title="Copy job ID" aria-label="Copy job ID">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+      </button>
+    </div>
+  </div>
+  <a class="back" href="/">
+    <svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>
+    read another project
+  </a>
+</header>
+
+<nav class="subnav" id="subnav" aria-label="Section navigation">
+  <a href="#overview">Overview</a>
+  {% if study_json.grids %}<a href="#grids">Grids</a>{% endif %}
+  {% if has_dashboard %}<a href="#dashboard-section">Dashboard</a>{% endif %}
+  <a href="#archive">Archive</a>
+  {% if output_rows %}<a href="#downloads">Downloads</a>{% endif %}
+</nav>
+
+<main>
+
+  {% if error %}
+  <div class="errbox"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+    <div><b>Could not extract this archive.</b><pre>{{ error }}</pre></div>
+  </div>
+  {% endif %}
+
+  <div id="overview">
+  {% if study_json %}
+  <div class="grid">
+    <div class="card"><div class="label">Luminaires found</div>
+      <div class="value">{{ study_json.luminaires|length if study_json.luminaires is defined else 0 }}</div></div>
+    <div class="card"><div class="label">Rooms found</div>
+      <div class="value">{{ study_json.rooms|length if study_json.rooms is defined else 0 }}</div></div>
+    <div class="card"><div class="label">Calculation grids recovered</div>
+      <div class="value">{{ study_json.grids|length if study_json.grids is defined else 0 }}</div></div>
+    <div class="card"><div class="label">DIALux version</div>
+      <div class="value" style="font-size:16px">{{ study_json.project.dialux_version if study_json.project is defined else "—" }}</div></div>
+  </div>
+  {% endif %}
+
+  {% if study_json.warnings %}
+  <div class="warnbox">
+    <svg class="icon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    <div><b>Heads up</b>
+    <ul style="margin:6px 0 0 18px;padding:0">
+    {% for w in study_json.warnings %}<li>{{ w }}</li>{% endfor %}
+    </ul></div>
+  </div>
+  {% endif %}
+
+  {% if pipeline_error %}
+  <div class="errbox"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+    <div><b>The recovery pipeline hit an error</b> — partial results may still be below.<pre>{{ pipeline_error }}</pre></div>
+  </div>
+  {% endif %}
+  </div>
+
+  {% if study_json.grids %}
+  <section id="grids">
+    <div class="section-head">
+      <div>
+        <h2>Recovered value grids (illuminance)</h2>
+        <p class="section-desc">Confidence reflects how sure the statistical float-recovery is about the <em>values</em> — not the physical grid shape or coordinates, which need real geometry to place correctly.</p>
+      </div>
+      <div class="section-tools">
+        <span class="count-chip" data-count-for="grids-table">{{ study_json.grids|length }} grid{{ 's' if study_json.grids|length != 1 else '' }}</span>
+        <div class="search-wrap">
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" data-table-search="grids-table" placeholder="Filter grids…" aria-label="Filter grids">
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap">
+    <table id="grids-table" class="data-table">
+      <thead><tr>
+        <th class="sortable">Surface <span class="arrow">▲▼</span></th>
+        <th class="sortable">Result group <span class="arrow">▲▼</span></th>
+        <th class="sortable" data-type="num">Points <span class="arrow">▲▼</span></th>
+        <th class="sortable" data-type="num">Eav <span class="arrow">▲▼</span></th>
+        <th class="sortable" data-type="num">Emin <span class="arrow">▲▼</span></th>
+        <th class="sortable" data-type="num">Emax <span class="arrow">▲▼</span></th>
+        <th class="sortable" data-type="num">Emin/Emax (u0) <span class="arrow">▲▼</span></th>
+        <th class="sortable" data-type="num">Confidence <span class="arrow">▲▼</span></th>
+        <th class="sortable">Source file <span class="arrow">▲▼</span></th>
+      </tr></thead>
+      <tbody>
+      {% for g in study_json.grids %}
+      <tr>
+        <td>{{ g.name }}</td>
+        <td><code>{{ g.group }}</code></td>
+        <td>{{ g.metrics.points if g.metrics else "—" }}</td>
+        <td>{{ "%.1f"|format(g.metrics.Eav) if g.metrics and g.metrics.Eav is defined else "—" }} lx</td>
+        <td>{{ "%.1f"|format(g.metrics.Emin) if g.metrics and g.metrics.Emin is defined else "—" }} lx</td>
+        <td>{{ "%.1f"|format(g.metrics.Emax) if g.metrics and g.metrics.Emax is defined else "—" }} lx</td>
+        <td>{{ "%.2f"|format(g.metrics["Emin/Emax"]) if g.metrics and g.metrics["Emin/Emax"] is defined else "—" }}</td>
+        <td data-sort="{{ (g.confidence or 0)*100 }}">
+          {% if g.confidence and g.confidence >= 0.7 %}<span class="badge good" data-tip="High confidence: this value array closely matches expected DIALux float layout.">{{ "%.0f"|format(g.confidence*100) }}%</span>
+          {% elif g.confidence and g.confidence >= 0.4 %}<span class="badge warn" data-tip="Medium confidence: worth a spot-check against the real DIALux output.">{{ "%.0f"|format(g.confidence*100) }}%</span>
+          {% else %}<span class="badge bad" data-tip="Low confidence: treat these values as provisional.">{{ "%.0f"|format((g.confidence or 0)*100) }}%</span>{% endif %}
+        </td>
+        <td class="muted">{{ g.source }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+
+    {% set any_candidates = study_json.grids|selectattr('other_candidates')|list %}
+    {% if any_candidates %}
+    <div style="margin-top:14px">
+      {% for g in any_candidates %}
+      <details class="candidates">
+        <summary><span class="chev">▸</span> {{ g.name }} — {{ g.other_candidates|length }} other value array(s) found but not used</summary>
+        <ul>
+        {% for c in g.other_candidates %}
+          <li>found in <code>{{ g.source }}</code> at <code>@0x{{ "%06x"|format(c.offset) }}</code> — n={{ c.n }} {{ c.dtype }}, range {{ c.min }}–{{ c.max }} lx, score {{ c.score }}. Could be a separate direct/indirect/total component DIALux stores alongside the array used above — unconfirmed without checking against real DIALux output.</li>
+        {% endfor %}
+        </ul>
+      </details>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if has_dashboard %}
+  <section id="dashboard-section">
+    <div class="section-head">
+      <div><h2>Interactive dashboard</h2></div>
+      <div class="section-tools">
+        <a class="btn secondary small" href="/dashboard/{{ job_id }}" target="_blank" rel="noopener">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          Open full-screen
+        </a>
+        <button type="button" class="btn secondary small" id="expandToggle">
+          <svg class="icon" viewBox="0 0 24 24"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+          <span id="expandLabel">Expand</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="report-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      {% if has_pdf %}
+      <a class="btn small" href="/files/{{ job_id }}/study.pdf" target="_blank" rel="noopener">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+        Download study.pdf
+      </a>
+      {% else %}
+      <span class="badge warn">PDF not generated</span>
+      {% endif %}
+      {% if has_images %}
+      <span class="badge good">PNG sheets generated</span>
+      {% else %}
+      <span class="badge warn">PNG sheets not generated</span>
+      {% endif %}
+    </div>
+
+    {% if not has_pdf or not has_images %}
+    <form action="/generate_report/{{ job_id }}" method="post" class="report-form" id="reportForm">
+      <div class="fields">
+        {% if not has_pdf %}
+        <label><input type="checkbox" name="make_pdf" value="1" checked> Generate PDF report</label>
+        {% endif %}
+        {% if not has_images %}
+        <label><input type="checkbox" name="make_images" value="1" checked> Generate PNG image sheets</label>
+        {% endif %}
+        <label><input type="checkbox" name="skip_3d" value="1"> Skip 3D surface pages</label>
+      </div>
+      <button type="submit" class="btn secondary small" id="reportSubmit">
+        <span class="spinner"></span><span class="btn-label">Generate selected</span>
+      </button>
+    </form>
+    <p class="status-line" id="reportStatus" style="display:none">Rendering — this can take a little while for studies with many result groups. The page will reload automatically when it's done.</p>
+    {% endif %}
+
+    <p class="muted">Nothing is rendered as an image until you ask for it above — the numbers and the dashboard already show everything recovered. Generate just the PDF, just the PNG sheets, or both.</p>
+    <div class="dash-frame-wrap" id="dashFrameWrap">
+      <iframe src="/dashboard/{{ job_id }}" title="Interactive dashboard"></iframe>
+    </div>
+  </section>
+  {% endif %}
+
+  <section id="archive">
+    <div class="section-head">
+      <div>
+        <h2>Every file in the archive</h2>
+        <p class="section-desc">This is what evostudy's <code>inspect</code> command detected inside your .evo — the same listing, in the browser.</p>
+      </div>
+      <div class="section-tools">
+        <span class="count-chip" data-count-for="archive-table">{{ file_rows|length }} file{{ 's' if file_rows|length != 1 else '' }}</span>
+        <div class="search-wrap">
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" data-table-search="archive-table" placeholder="Filter files…" aria-label="Filter archive files">
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap" style="max-height:520px;overflow-y:auto">
+    <table id="archive-table" class="data-table">
+      <thead><tr>
+        <th class="sortable">Path <span class="arrow">▲▼</span></th>
+        <th class="sortable" data-type="num">Size <span class="arrow">▲▼</span></th>
+        <th class="sortable">Type <span class="arrow">▲▼</span></th>
+        <th class="sortable">What it is <span class="arrow">▲▼</span></th>
+      </tr></thead>
+      <tbody>
+      {% for r in file_rows %}
+      <tr>
+        <td class="wrap"><code>{{ r.path }}</code></td>
+        <td data-sort="{{ r.size_bytes if r.size_bytes is defined else 0 }}">{{ r.size }}</td>
+        <td><span class="badge neutral">{{ r.type }}</span></td>
+        <td class="wrap muted">{{ r.description }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  {% if output_rows %}
+  <section id="downloads">
+    <div class="section-head">
+      <div><h2>Generated outputs (download)</h2></div>
+      <div class="section-tools">
+        <span class="count-chip" data-count-for="downloads-table">{{ output_rows|length }} file{{ 's' if output_rows|length != 1 else '' }}</span>
+        <div class="search-wrap">
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" data-table-search="downloads-table" placeholder="Filter outputs…" aria-label="Filter downloads">
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap">
+    <table id="downloads-table" class="data-table">
+      <thead><tr>
+        <th class="sortable">File <span class="arrow">▲▼</span></th>
+        <th class="sortable" data-type="num">Size <span class="arrow">▲▼</span></th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+      {% for o in output_rows %}
+      <tr>
+        <td class="wrap"><code>{{ o.path }}</code></td>
+        <td data-sort="{{ o.size_bytes if o.size_bytes is defined else 0 }}">{{ o.size }}</td>
+        <td><a class="filelink" href="/files/{{ job_id }}/{{ o.path }}" target="_blank" rel="noopener">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Open
+        </a></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {% endif %}
+
+</main>
+
+<script>
+(function(){
+  // ---------- copy buttons ----------
+  document.querySelectorAll('[data-copy]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var text = btn.getAttribute('data-copy');
+      navigator.clipboard && navigator.clipboard.writeText(text).then(function(){
+        var original = btn.innerHTML;
+        btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        setTimeout(function(){ btn.innerHTML = original; }, 1200);
+      });
+    });
+  });
+
+  // ---------- scroll-spy sub nav ----------
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll('nav.subnav a'));
+  var sections = navLinks.map(function(a){ return document.querySelector(a.getAttribute('href')); }).filter(Boolean);
+  if (sections.length){
+    var spy = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        var id = '#' + entry.target.id;
+        var link = navLinks.find(function(a){ return a.getAttribute('href') === id; });
+        if (!link) return;
+        if (entry.isIntersecting){
+          navLinks.forEach(function(a){ a.classList.remove('active'); });
+          link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-120px 0px -70% 0px' });
+    sections.forEach(function(s){ spy.observe(s); });
+  }
+
+  // ---------- dashboard expand toggle ----------
+  var expandBtn = document.getElementById('expandToggle');
+  var expandLabel = document.getElementById('expandLabel');
+  var frameWrap = document.getElementById('dashFrameWrap');
+  if (expandBtn){
+    expandBtn.addEventListener('click', function(){
+      var expanded = frameWrap.classList.toggle('expanded');
+      expandLabel.textContent = expanded ? 'Collapse' : 'Expand';
+    });
+  }
+
+  // ---------- report generation: prevent double-submit + show progress ----------
+  var reportForm = document.getElementById('reportForm');
+  if (reportForm){
+    reportForm.addEventListener('submit', function(){
+      var btn = document.getElementById('reportSubmit');
+      var status = document.getElementById('reportStatus');
+      btn.classList.add('loading');
+      btn.disabled = true;
+      btn.querySelector('.btn-label').textContent = 'Generating…';
+      if (status) status.style.display = 'block';
+    });
+  }
+
+  // ---------- generic table: search + sort ----------
+  function parseCell(td){
+    if (td.hasAttribute('data-sort')) return parseFloat(td.getAttribute('data-sort')) || 0;
+    var t = td.textContent.trim();
+    var num = t.replace(/,/g, '').match(/-?\d+(\.\d+)?/);
+    return num ? parseFloat(num[0]) : null;
+  }
+  function sizeAwareNumber(td){
+    var direct = parseCell(td);
+    var t = td.textContent.trim();
+    var m = t.match(/([\d.,]+)\s*(B|KB|MB|GB|TB)\b/i);
+    if (m){
+      var mult = { B:1, KB:1024, MB:1024*1024, GB:1024*1024*1024, TB:1024*1024*1024*1024 }[m[2].toUpperCase()];
+      return parseFloat(m[1].replace(/,/g,'')) * mult;
+    }
+    return direct;
+  }
+
+  document.querySelectorAll('table.data-table').forEach(function(table){
+    var tbody = table.querySelector('tbody');
+    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    var ths = Array.prototype.slice.call(table.querySelectorAll('th.sortable'));
+
+    ths.forEach(function(th, colIndex){
+      th.addEventListener('click', function(){
+        var asc = !th.classList.contains('sort-asc');
+        ths.forEach(function(h){ h.classList.remove('sort-asc','sort-desc'); });
+        th.classList.add(asc ? 'sort-asc' : 'sort-desc');
+        var isNum = th.getAttribute('data-type') === 'num';
+        rows.sort(function(a, b){
+          var ca = a.children[colIndex], cb = b.children[colIndex];
+          var va, vb;
+          if (isNum){
+            va = sizeAwareNumber(ca); vb = sizeAwareNumber(cb);
+            if (va === null) va = -Infinity;
+            if (vb === null) vb = -Infinity;
+          } else {
+            va = ca.textContent.trim().toLowerCase();
+            vb = cb.textContent.trim().toLowerCase();
+          }
+          if (va < vb) return asc ? -1 : 1;
+          if (va > vb) return asc ? 1 : -1;
+          return 0;
+        });
+        rows.forEach(function(r){ tbody.appendChild(r); });
+      });
+    });
+
+    var searchInput = document.querySelector('[data-table-search="' + table.id + '"]');
+    var countChip = document.querySelector('[data-count-for="' + table.id + '"]');
+    var total = rows.length;
+    if (searchInput){
+      searchInput.addEventListener('input', function(){
+        var q = searchInput.value.trim().toLowerCase();
+        var visible = 0;
+        rows.forEach(function(r){
+          var match = !q || r.textContent.toLowerCase().indexOf(q) !== -1;
+          r.classList.toggle('no-match', !match);
+          if (match) visible++;
+        });
+        if (countChip) countChip.textContent = q ? (visible + ' of ' + total) : (total + (total === 1 ? ' row' : ' rows'));
+      });
+    }
+  });
+})();
+</script>
+</body>
+</html>
