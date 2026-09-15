@@ -43,10 +43,11 @@
   const fillEl = document.getElementById('fill');
   const errWrap = document.getElementById('errWrap');
   const errBox = document.getElementById('errBox');
+  const BASE_PATH = "/evo-reader";
 
   async function poll() {
     try {
-      const r = await fetch(`/status/${jobId}`);
+      const r = await fetch(`${BASE_PATH}/status/${jobId}`);
       const s = await r.json();
       if (s.error) {
         errWrap.style.display = 'block';
