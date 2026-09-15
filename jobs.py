@@ -108,17 +108,21 @@ def start_heartbeat(job_id: str, interval: float = 10.0) -> threading.Event:
 
 
 def get_status(job_id: str) -> dict | None:
-    with JOBS_LOCK:
-        live = JOBS.get(job_id)
-    if live is not None:
-        return live
+    """status.json is the only state that's actually shared across
+    processes (the web app's Passenger workers and the standalone
+    worker.py process all run separately, so a module-level dict is
+    per-process and goes stale the instant another process writes a
+    newer status). Read the file first; only fall back to the in-memory
+    JOBS dict for the brief window right after enqueue() before the file
+    has been written, or if the file is unreadable."""
     sf = _status_file(job_id)
     if sf.exists():
         try:
             return json.loads(sf.read_text())
         except (OSError, ValueError):
-            return None
-    return None
+            pass
+    with JOBS_LOCK:
+        return JOBS.get(job_id)
 
 
 def human_size(n: int) -> str:
