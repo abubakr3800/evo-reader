@@ -86,6 +86,18 @@ def generate_report(job_id):
     return redirect(url_for("progress_page", job_id=job_id))
 
 
+@app.route("/delete/<job_id>", methods=["POST"])
+def delete_job(job_id):
+    """Stops a running job (kills the worker process handling it — cron
+    starts a fresh one within 5 min for any other queued work) or just
+    removes a queued/finished one, then deletes its files."""
+    if not job_dir(job_id).exists() and not (jobs.QUEUE_DIR / f"{job_id}.json").exists():
+        return "Unknown job.", 404
+    jobs.cancel_job(job_id)
+    jobs.delete_job_files(job_id)
+    return redirect(url_for("index"))
+
+
 @app.route("/progress/<job_id>")
 def progress_page(job_id):
     if not job_dir(job_id).exists():

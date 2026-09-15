@@ -45,11 +45,16 @@
   .badge.done{background:#e6f7ec;color:#1a7f45}
   .badge.failed{background:#fdeaea;color:var(--sc-dark-red)}
   .badge.running{background:#fff4e0;color:#a15c00}
+  .badge.queued{background:#eef2ff;color:#3b4ec4}
   .badge.unknown{background:#eef0f3;color:var(--sub)}
   .job-open{flex-shrink:0;text-decoration:none;font-size:13px;font-weight:600;
     color:var(--sc-red);border:1px solid var(--sc-red);border-radius:7px;
     padding:7px 14px;white-space:nowrap;}
   .job-open:hover{background:var(--sc-red);color:#fff}
+  .job-delete{flex-shrink:0;background:none;border:1px solid var(--border);
+    color:var(--sub);border-radius:7px;padding:7px 12px;font-size:13px;
+    font-weight:600;cursor:pointer;margin:0;width:auto}
+  .job-delete:hover{border-color:var(--sc-red);color:var(--sc-red);background:#fff5f5}
   .no-jobs{font-size:13px;color:var(--sub);text-align:center;padding:18px 0}
 </style>
 </head>
@@ -100,11 +105,23 @@
             <div class="job-meta">{{ job.when }} · {{ job.job_id }} · {{ job.stage }}</div>
           </div>
           <span class="badge {{ job.status }}">{{ job.status }}</span>
-          {% if job.status == 'running' %}
+          {% if job.status == 'running' or job.status == 'queued' %}
             <a class="job-open" href="{{ url_for('progress_page', job_id=job.job_id) }}">Open</a>
           {% else %}
             <a class="job-open" href="{{ url_for('result', job_id=job.job_id) }}">Open</a>
           {% endif %}
+          <form action="{{ url_for('delete_job', job_id=job.job_id) }}" method="post"
+                onsubmit="return confirm(
+                  {% if job.status == 'running' %}
+                    'This job is currently running — stop it and delete everything?'
+                  {% else %}
+                    'Delete this job and all its files?'
+                  {% endif %}
+                );">
+            <button type="submit" class="job-delete">
+              {% if job.status == 'running' %}Stop &amp; delete{% else %}Delete{% endif %}
+            </button>
+          </form>
         </div>
       {% endfor %}
     {% else %}

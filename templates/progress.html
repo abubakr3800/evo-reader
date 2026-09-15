@@ -60,7 +60,7 @@
       fillEl.style.width = pct + '%';
       stageEl.textContent = s.stage || '';
       if (s.done) {
-        window.location.href = `/result/${jobId}`;
+        window.location.href = `${BASE_PATH}/result/${jobId}`;
         return;
       }
     } catch (e) { /* transient — keep polling */ }

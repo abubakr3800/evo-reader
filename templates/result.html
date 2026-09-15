@@ -177,7 +177,7 @@
       </button>
     </div>
   </div>
-  <a class="back" href="/">
+  <a class="back" href="{{ url_for('index') }}">
     <svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>
     read another project
   </a>
@@ -303,7 +303,7 @@
     <div class="section-head">
       <div><h2>Interactive dashboard</h2></div>
       <div class="section-tools">
-        <a class="btn secondary small" href="/dashboard/{{ job_id }}" target="_blank" rel="noopener">
+        <a class="btn secondary small" href="{{ url_for('dashboard', job_id=job_id) }}" target="_blank" rel="noopener">
           <svg class="icon" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
           Open full-screen
         </a>
@@ -316,7 +316,7 @@
 
     <div class="report-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
       {% if has_pdf %}
-      <a class="btn small" href="/files/{{ job_id }}/study.pdf" target="_blank" rel="noopener">
+      <a class="btn small" href="{{ url_for('serve_output', job_id=job_id, filename='study.pdf') }}" target="_blank" rel="noopener">
         <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
         Download study.pdf
       </a>
@@ -331,7 +331,7 @@
     </div>
 
     {% if not has_pdf or not has_images %}
-    <form action="/generate_report/{{ job_id }}" method="post" class="report-form" id="reportForm">
+    <form action="{{ url_for('generate_report', job_id=job_id) }}" method="post" class="report-form" id="reportForm">
       <div class="fields">
         {% if not has_pdf %}
         <label><input type="checkbox" name="make_pdf" value="1" checked> Generate PDF report</label>
@@ -350,7 +350,7 @@
 
     <p class="muted">Nothing is rendered as an image until you ask for it above — the numbers and the dashboard already show everything recovered. Generate just the PDF, just the PNG sheets, or both.</p>
     <div class="dash-frame-wrap" id="dashFrameWrap">
-      <iframe src="/dashboard/{{ job_id }}" title="Interactive dashboard"></iframe>
+      <iframe src="{{ url_for('dashboard', job_id=job_id) }}" title="Interactive dashboard"></iframe>
     </div>
   </section>
   {% endif %}
@@ -415,7 +415,7 @@
       <tr>
         <td class="wrap"><code>{{ o.path }}</code></td>
         <td data-sort="{{ o.size_bytes if o.size_bytes is defined else 0 }}">{{ o.size }}</td>
-        <td><a class="filelink" href="/files/{{ job_id }}/{{ o.path }}" target="_blank" rel="noopener">
+        <td><a class="filelink" href="{{ url_for('serve_output', job_id=job_id, filename=o.path) }}" target="_blank" rel="noopener">
           <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           Open
         </a></td>

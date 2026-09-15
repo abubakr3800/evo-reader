@@ -63,20 +63,24 @@ def main():
 
         kind = req.get("kind", "pipeline")
         _log(f"Processing {kind} job {req['job_id']}")
-        if kind == "report":
-            jobs.run_report(
-                req["job_id"],
-                skip_3d=req.get("skip_3d", False),
-                make_pdf=req.get("make_pdf", False),
-                make_images=req.get("make_images", False),
-            )
-        else:
-            jobs.run_pipeline(
-                req["job_id"], Path(req["src_path"]), req["orig_name"],
-                skip_3d=req.get("skip_3d", False),
-                make_pdf=req.get("make_pdf", False),
-                make_images=req.get("make_images", False),
-            )
+        jobs.set_current(req["job_id"])
+        try:
+            if kind == "report":
+                jobs.run_report(
+                    req["job_id"],
+                    skip_3d=req.get("skip_3d", False),
+                    make_pdf=req.get("make_pdf", False),
+                    make_images=req.get("make_images", False),
+                )
+            else:
+                jobs.run_pipeline(
+                    req["job_id"], Path(req["src_path"]), req["orig_name"],
+                    skip_3d=req.get("skip_3d", False),
+                    make_pdf=req.get("make_pdf", False),
+                    make_images=req.get("make_images", False),
+                )
+        finally:
+            jobs.set_current(None)
         _log(f"Finished job {req['job_id']}")
 
 

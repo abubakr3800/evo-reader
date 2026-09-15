@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
 import threading
 import time
 import traceback
@@ -225,6 +226,64 @@ def _write_queue_entry(job_id: str, req: dict):
     tmp = QUEUE_DIR / f"{job_id}.json.tmp"
     tmp.write_text(json.dumps(req))
     tmp.rename(QUEUE_DIR / f"{job_id}.json")  # atomic — worker never sees a half-written file
+
+
+def _current_file() -> Path:
+    return QUEUE_DIR / "current.json"
+
+
+def set_current(job_id: str | None):
+    """Records which job_id the worker process is actively running right
+    now, plus its own PID, so /delete can find and interrupt it. Called by
+    worker.py; job_id=None clears it once a job finishes."""
+    cf = _current_file()
+    if job_id is None:
+        cf.unlink(missing_ok=True)
+        return
+    cf.write_text(json.dumps({"job_id": job_id, "pid": os.getpid()}))
+
+
+def get_current() -> dict | None:
+    cf = _current_file()
+    if not cf.exists():
+        return None
+    try:
+        return json.loads(cf.read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def cancel_job(job_id: str) -> str:
+    """Called by the web app's /delete route. Returns what it did:
+    'dequeued' (was only queued, never started — just removed),
+    'killed' (was actively running — the worker process handling it was
+    terminated; cron will start a fresh worker within 5 min for any other
+    queued jobs), or 'none' (nothing to stop, just cleanup)."""
+    q = QUEUE_DIR / f"{job_id}.json"
+    if q.exists():
+        q.unlink(missing_ok=True)
+        return "dequeued"
+
+    current = get_current()
+    if current and current.get("job_id") == job_id:
+        pid = current.get("pid")
+        if pid:
+            try:
+                os.kill(pid, signal.SIGTERM)
+                time.sleep(1)
+                os.kill(pid, signal.SIGKILL)  # in case SIGTERM didn't land fast enough
+            except ProcessLookupError:
+                pass  # already gone
+        _current_file().unlink(missing_ok=True)
+        return "killed"
+
+    return "none"
+
+
+def delete_job_files(job_id: str):
+    jdir = job_dir(job_id)
+    if jdir.exists():
+        shutil.rmtree(jdir, ignore_errors=True)
 
 
 def claim_next_job() -> dict | None:
