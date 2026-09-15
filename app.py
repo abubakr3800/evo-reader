@@ -107,6 +107,47 @@ def set_status(job_id: str, stage: str, percent: float, **extra):
         pass
 
 
+def touch(job_id: str):
+    """Refresh updated_at ONLY — stage/percent/done/error are left exactly
+    as they were. Used by the heartbeat below so a single long, silent
+    step (see start_heartbeat) doesn't get mistaken for a dead worker; it
+    never fabricates progress that didn't happen."""
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+        if job is None:
+            return
+        job["updated_at"] = time.time()
+        snapshot = dict(job)
+    try:
+        job_dir(job_id).mkdir(parents=True, exist_ok=True)
+        _status_file(job_id).write_text(json.dumps(snapshot))
+    except OSError:
+        pass
+
+
+# Some pipeline steps (parsing a big ProjectData.xml, recovering luminaires
+# from a STEP-format ProjectData.dat, rasterising one very large .rsl
+# result group) are pure-CPU work with no natural place to call
+# set_status() partway through. If one of those takes longer than
+# STALL_TIMEOUT_S, /status's "hasn't been updated recently" check reports
+# "job status lost or stalled (process restart)" even though the worker is
+# still alive and working — a false positive, not the Passenger-recycle
+# case this check exists for. A heartbeat thread that pings touch() every
+# few seconds closes that gap: if the process is genuinely killed, the
+# heartbeat dies with it and the real stall is still caught; if the
+# process is just busy, updated_at keeps refreshing and the UI keeps
+# waiting instead of giving up early.
+def start_heartbeat(job_id: str, interval: float = 10.0) -> threading.Event:
+    stop = threading.Event()
+
+    def _beat():
+        while not stop.wait(interval):
+            touch(job_id)
+
+    threading.Thread(target=_beat, daemon=True).start()
+    return stop
+
+
 def get_status(job_id: str) -> dict | None:
     """Memory first (freshest, and works even before the file is flushed),
     falling back to the on-disk mirror for a job this process never saw
@@ -216,6 +257,7 @@ def run_pipeline(job_id: str, src_path: Path, orig_name: str,
     once you've actually looked at the numbers and decided you want them.
     """
     jdir = job_dir(job_id)
+    heartbeat_stop = start_heartbeat(job_id)
     try:
         set_status(job_id, f"Converting {orig_name} to a .zip twin", 2)
         zip_twin = jdir / (Path(orig_name).stem + ".evo.zip")
@@ -257,6 +299,8 @@ def run_pipeline(job_id: str, src_path: Path, orig_name: str,
         tb = traceback.format_exc()
         (jdir / "pipeline_error.txt").write_text(tb)
         set_status(job_id, "Failed", 100, done=True, error=tb)
+    finally:
+        heartbeat_stop.set()
 
 
 def _render_report(job_id: str, study, out_dir: Path, skip_3d: bool,
