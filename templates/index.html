@@ -72,16 +72,16 @@
       </div>
 
       <label class="opt-row">
-        <input type="checkbox" name="make_pdf" value="1" id="make_pdf">
-        Also render a <b>PDF report</b> (slower, produces a single document) — leave
-        this off to just get the dashboard and data tables
+        <input type="checkbox" name="make_pdf" value="1" id="make_pdf" checked>
+        Also render a <b>PDF report</b> (slower, produces a single document) — untick
+        this to just get the dashboard and data tables
       </label>
 
       <label class="opt-row">
-        <input type="checkbox" name="make_images" value="1" id="make_images">
-        Also export <b>PNG image sheets</b> + per-fixture views (slower, produces
-        individual images) — you can generate either of these later from the
-        results page if you decide you need them
+        <input type="checkbox" name="make_images" value="1" id="make_images" checked>
+        Also export <b>PNG image sheets</b> (false-colour heatmap, isolines,
+        numeric values) + per-fixture views — untick this if you only want
+        the dashboard and data tables
       </label>
 
       <label id="skip_3d_row" class="opt-row sub-opt">
@@ -92,7 +92,7 @@
 
       <button type="submit">Convert, extract &amp; read project</button>
     </form>
-    <div class="hint">This will: copy your .evo to a .zip twin → extract it → list every file with its type → recover luminaires, rooms and illuminance values → build a dashboard and CSV/JSON exports of every real number recovered. No PDF or PNG images are produced unless you ask for them above.</div>
+    <div class="hint">This will: copy your .evo to a .zip twin → extract it → list every file with its type → recover luminaires, rooms and illuminance values → build a dashboard and CSV/JSON exports of every real number recovered, plus a PDF report and PNG heatmap/isoline/values sheets (untick the boxes above to skip those and go faster).</div>
   </div>
 
   <div class="jobs">

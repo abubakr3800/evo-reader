@@ -50,33 +50,49 @@ def load_study(path: str, mapping_file: Optional[str] = None,
     # We don't guess its layout here (that needs real bytes to verify
     # against), but we make the blind spot visible instead of silently
     # reporting 0 luminaires as if ProjectData.xml were the whole story.
-    if not study.luminaires and not study.rooms and arc.project_dat is not None:
-        _tick("Recovering luminaires from ProjectData.dat", 0.20)
+    # NOTE: luminaire and room recovery from ProjectData.dat are gated
+    # INDEPENDENTLY of each other. Earlier this was a single
+    # `if not study.luminaires and not study.rooms` guard, which meant that
+    # on evo builds where ProjectData.xml's mapping-based parse already
+    # recovered luminaires (or rooms) but not the other, the STEP fallback
+    # never ran at all for the missing half — silently leaving rooms (or
+    # luminaires) empty even though the data was recoverable. Each half now
+    # only depends on its own emptiness.
+    need_luminaires = not study.luminaires and arc.project_dat is not None
+    need_rooms = not study.rooms and arc.project_dat is not None
+    if need_luminaires or need_rooms:
+        _tick("Recovering luminaires/rooms from ProjectData.dat", 0.20)
         from .parse_step import extract_luminaires, extract_rooms
         try:
             dat_text = arc.project_dat.read().decode("utf-8", errors="replace")
-            recovered, step_warnings = extract_luminaires(dat_text)
         except Exception as exc:
             dat_text = None
-            recovered, step_warnings = [], [f"ProjectData.dat STEP recovery failed: {exc}"]
-        if recovered:
-            study.luminaires = recovered
-            study.warnings.extend(step_warnings)
-        else:
-            study.warnings.append(
-                f"ProjectData.xml matched no luminaires/rooms, and the sibling "
-                f"{arc.project_dat.path} ({arc.project_dat.size:,} bytes) was "
-                f"read as a STEP (ISO 10303-21) file but no LuminaireElement "
-                f"records were found in it — this evo version may use a "
-                f"different record type name. Run `evostudy probe --file "
-                f"{arc.project_dat.path}` and inspect it directly.")
+            study.warnings.append(f"ProjectData.dat could not be read: {exc}")
+
+        if need_luminaires and dat_text is not None:
+            try:
+                recovered, step_warnings = extract_luminaires(dat_text)
+            except Exception as exc:
+                recovered, step_warnings = [], [
+                    f"ProjectData.dat STEP luminaire recovery failed: {exc}"]
+            if recovered:
+                study.luminaires = recovered
+                study.warnings.extend(step_warnings)
+            else:
+                study.warnings.append(
+                    f"ProjectData.xml matched no luminaires, and the sibling "
+                    f"{arc.project_dat.path} ({arc.project_dat.size:,} bytes) was "
+                    f"read as a STEP (ISO 10303-21) file but no LuminaireElement "
+                    f"records were found in it — this evo version may use a "
+                    f"different record type name. Run `evostudy probe --file "
+                    f"{arc.project_dat.path}` and inspect it directly.")
 
         # extract_luminaires() has no equivalent for rooms — there is no
         # confirmed room/space STEP type name yet, so this is a
         # name-heuristic best effort that also always reports the file's
         # full entity-type inventory, so a real fix can target the right
         # type name instead of guessing blind a second time.
-        if not study.rooms and dat_text is not None:
+        if need_rooms and dat_text is not None:
             _tick("Looking for room/space records in ProjectData.dat", 0.23)
             try:
                 room_recovered, room_warnings = extract_rooms(dat_text)
@@ -280,7 +296,9 @@ def export_report(study: Study, pdf_path: Optional[str] = None,
         base = f"{gi + 1:02d}_{_slug(g.name)}"
         jobs.append((f"{base}_falsecolour", lambda g=g: sheet_false_colour(study, g)))
         jobs.append((f"{base}_isolines", lambda g=g: sheet_isolines(study, g)))
-        jobs.append((f"{base}_values", lambda g=g: sheet_value_grid(study, g)))
+        jobs.append((f"{base}_values", lambda g=g: sheet_value_grid(study, g, colored=True)))
+        jobs.append((f"{base}_values_plain",
+                    lambda g=g: sheet_value_grid(study, g, colored=False)))
         if include_3d:
             jobs.append((f"{base}_3d", lambda g=g: sheet_surface_3d(study, g)))
 
@@ -308,53 +326,63 @@ def export_report(study: Study, pdf_path: Optional[str] = None,
     return pdf_path, written_pngs
 
 
-def _write_table(rows: List[dict], columns: List[str], base: Path) -> List[str]:
-    """One table, three downloadable formats from a single source of truth
-    (a list of plain dicts) — .json (list of objects), .csv, and a
-    space-aligned .txt. No format is derived from another on disk; all
-    three are written straight from `rows`."""
+DEFAULT_TABLE_FORMATS = frozenset({"csv"})
+
+
+def _write_table(rows: List[dict], columns: List[str], base: Path,
+                 formats: frozenset = DEFAULT_TABLE_FORMATS) -> List[str]:
+    """One table, written only in the requested downloadable format(s) —
+    .json (list of objects), .csv, and/or a space-aligned .txt — from a
+    single source of truth (a list of plain dicts). Defaults to CSV only;
+    pass e.g. formats={"csv", "json", "txt"} to also get the others."""
     written = []
 
-    jp = base.with_suffix(".json")
-    jp.write_text(json.dumps(rows, indent=2, ensure_ascii=False, default=str),
-                  encoding="utf-8")
-    written.append(str(jp))
+    if "json" in formats:
+        jp = base.with_suffix(".json")
+        jp.write_text(json.dumps(rows, indent=2, ensure_ascii=False, default=str),
+                      encoding="utf-8")
+        written.append(str(jp))
 
-    cp = base.with_suffix(".csv")
-    with cp.open("w", newline="", encoding="utf-8") as fh:
-        w = csv.writer(fh)
-        w.writerow(columns)
-        for r in rows:
-            w.writerow([r.get(c, "") for c in columns])
-    written.append(str(cp))
+    if "csv" in formats:
+        cp = base.with_suffix(".csv")
+        with cp.open("w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(columns)
+            for r in rows:
+                w.writerow([r.get(c, "") for c in columns])
+        written.append(str(cp))
 
-    tp = base.with_suffix(".txt")
-    widths = [max(len(str(c)), max((len(str(r.get(c, ""))) for r in rows), default=0))
-              for c in columns]
-    lines = ["  ".join(str(c).ljust(w) for c, w in zip(columns, widths)),
-             "  ".join("-" * w for w in widths)]
-    lines += ["  ".join(str(r.get(c, "")).ljust(w) for c, w in zip(columns, widths))
-              for r in rows]
-    tp.write_text("\n".join(lines), encoding="utf-8")
-    written.append(str(tp))
+    if "txt" in formats:
+        tp = base.with_suffix(".txt")
+        widths = [max(len(str(c)), max((len(str(r.get(c, ""))) for r in rows), default=0))
+                  for c in columns]
+        lines = ["  ".join(str(c).ljust(w) for c, w in zip(columns, widths)),
+                 "  ".join("-" * w for w in widths)]
+        lines += ["  ".join(str(r.get(c, "")).ljust(w) for c, w in zip(columns, widths))
+                  for r in rows]
+        tp.write_text("\n".join(lines), encoding="utf-8")
+        written.append(str(tp))
     return written
 
 
-def _write_grid_table(grid: CalcGrid, base: Path) -> List[str]:
-    """The full lux matrix for one calculation surface, as .json (axes +
-    2-D array), .csv, and .txt (both matrix layouts, y rows x x columns)."""
+def _write_grid_table(grid: CalcGrid, base: Path,
+                      formats: frozenset = DEFAULT_TABLE_FORMATS) -> List[str]:
+    """The full lux matrix for one calculation surface, written only in the
+    requested format(s): .json (axes + 2-D array), .csv, and/or .txt
+    (matrix layout, y rows x x columns). Defaults to CSV only."""
     written = []
     x0, y0, x1, y1 = grid.extent or (0, 0, grid.nx, grid.ny)
     xs = np.linspace(x0, x1, grid.nx)
     ys = np.linspace(y0, y1, grid.ny)
     values = grid.values.round(2).tolist() if grid.values is not None else []
 
-    jp = base.with_suffix(".json")
-    jp.write_text(json.dumps({
-        "surface": grid.name, "x_m": [round(float(x), 3) for x in xs],
-        "y_m": [round(float(y), 3) for y in ys], "unit": "lx", "values": values,
-    }, indent=2), encoding="utf-8")
-    written.append(str(jp))
+    if "json" in formats:
+        jp = base.with_suffix(".json")
+        jp.write_text(json.dumps({
+            "surface": grid.name, "x_m": [round(float(x), 3) for x in xs],
+            "y_m": [round(float(y), 3) for y in ys], "unit": "lx", "values": values,
+        }, indent=2), encoding="utf-8")
+        written.append(str(jp))
 
     def _matrix_rows(fmt: str):
         header = ["y\\x"] + [f"{x:.3f}" for x in xs]
@@ -363,26 +391,30 @@ def _write_grid_table(grid: CalcGrid, base: Path) -> List[str]:
             rows.append([f"{yv:.3f}"] + [fmt.format(v) for v in grid.values[j]])
         return rows
 
-    cp = base.with_suffix(".csv")
-    with cp.open("w", newline="", encoding="utf-8") as fh:
-        csv.writer(fh).writerows(_matrix_rows("{:.1f}"))
-    written.append(str(cp))
+    if "csv" in formats:
+        cp = base.with_suffix(".csv")
+        with cp.open("w", newline="", encoding="utf-8") as fh:
+            csv.writer(fh).writerows(_matrix_rows("{:.1f}"))
+        written.append(str(cp))
 
-    rows = _matrix_rows("{:.1f}")
-    widths = [max(len(str(c)) for c in col) for col in zip(*rows)]
-    tp = base.with_suffix(".txt")
-    tp.write_text("\n".join("  ".join(c.ljust(w) for c, w in zip(row, widths))
-                            for row in rows), encoding="utf-8")
-    written.append(str(tp))
+    if "txt" in formats:
+        rows = _matrix_rows("{:.1f}")
+        widths = [max(len(str(c)) for c in col) for col in zip(*rows)]
+        tp = base.with_suffix(".txt")
+        tp.write_text("\n".join("  ".join(c.ljust(w) for c, w in zip(row, widths))
+                                for row in rows), encoding="utf-8")
+        written.append(str(tp))
     return written
 
 
-def export_csv(study: Study, outdir: str) -> List[str]:
-    """Every table as JSON + CSV + TXT: luminaire schedule, rooms, the
-    per-surface results summary (now with the min/max point location), and
-    one full lux grid per calculation surface. (Function name kept as
-    export_csv for compatibility with existing callers — CSV is only one
-    of the three formats it now writes.)"""
+def export_csv(study: Study, outdir: str,
+               formats: frozenset = DEFAULT_TABLE_FORMATS) -> List[str]:
+    """Every table — luminaire schedule, rooms, the per-surface results
+    summary (with min/max point location), and one full lux grid per
+    calculation surface — written only in the requested format(s).
+    Defaults to CSV only (pass formats={"csv","json","txt"} for all three).
+    (Function name kept as export_csv for compatibility with existing
+    callers.)"""
     d = Path(outdir); d.mkdir(parents=True, exist_ok=True)
     written = []
 
@@ -397,7 +429,8 @@ def export_csv(study: Study, outdir: str) -> List[str]:
     written += _write_table(lum_rows, list(lum_rows[0].keys()) if lum_rows else
                             ["id", "name", "manufacturer", "article_no", "x_m",
                              "y_m", "z_m", "rotation_deg", "flux_lm", "power_W",
-                             "efficacy_lm_W", "cct_K", "count"], d / "luminaires")
+                             "efficacy_lm_W", "cct_K", "count"], d / "luminaires",
+                            formats)
 
     room_rows = [{
         "id": r.id, "name": r.name, "area_m2": round(r.area, 2),
@@ -409,12 +442,12 @@ def export_csv(study: Study, outdir: str) -> List[str]:
     written += _write_table(room_rows, ["id", "name", "area_m2", "height_m",
                                         "reflectance_ceiling", "reflectance_walls",
                                         "reflectance_floor", "maintenance_factor"],
-                            d / "rooms")
+                            d / "rooms", formats)
 
     for i, g in enumerate(study.grids, start=1):
         if g.values is None:
             continue
-        written += _write_grid_table(g, d / f"grid_{i}_{_slug(g.name)}")
+        written += _write_grid_table(g, d / f"grid_{i}_{_slug(g.name)}", formats)
 
     summary_cols = ["surface", "Eav_lx", "Emin_lx", "Emax_lx", "u0", "Emin/Emax",
                     "Emax/Eav", "median_lx", "std_lx", "points", "nx", "ny",
@@ -438,7 +471,7 @@ def export_csv(study: Study, outdir: str) -> List[str]:
             "max_point_x_m": round(ext["max"]["x"], 3) if ext else None,
             "max_point_y_m": round(ext["max"]["y"], 3) if ext else None,
         })
-    written += _write_table(summary_rows, summary_cols, d / "results_summary")
+    written += _write_table(summary_rows, summary_cols, d / "results_summary", formats)
     return written
 
 

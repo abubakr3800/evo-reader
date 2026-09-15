@@ -237,6 +237,17 @@ def list_entity_types(text: str) -> "Counter[str]":
 # reports which type name(s) it actually matched.
 _ROOM_TYPE_HINTS = ("room", "raum", "space", "zone")
 
+# Among types matching _ROOM_TYPE_HINTS, these are the ones observed to be
+# the actual room/space INSTANCE record (one per real room) rather than a
+# satellite record hanging off it (a *PropertySet, *RepresentationData,
+# *RepresentationDataPart, or *Info record describing/annotating a room that
+# already has its own instance elsewhere). When at least one entity of an
+# exact type in this set is present, extract_rooms() reports rooms from
+# this set only — one row per real room instead of one row per satellite
+# record — and treats the rest purely as reference-graph material to walk
+# through when looking for an outline, not as separate rooms.
+_ROOM_INSTANCE_TYPES = ("Space",)
+
 # Candidate type names (also unconfirmed) whose args might hold a boundary
 # point sequence, tried in order when following references out of a
 # room-like record looking for its outline.
@@ -312,6 +323,15 @@ def extract_rooms(text: str) -> Tuple[List[Room], List[str]]:
     room_ids = [eid for eid, e in entities.items()
                if any(h in e.type.lower() for h in _ROOM_TYPE_HINTS)]
 
+    # Prefer the confirmed instance type(s) if any are present, so one real
+    # room doesn't get reported as several rows (one per satellite record
+    # that merely mentions "space" in its type name).
+    instance_ids = [eid for eid in room_ids
+                    if entities[eid].type in _ROOM_INSTANCE_TYPES]
+    used_instance_filter = bool(instance_ids)
+    if used_instance_filter:
+        room_ids = instance_ids
+
     if not room_ids:
         warnings.append(
             f"No room outline recovered: no STEP entity type name looked "
@@ -327,7 +347,7 @@ def extract_rooms(text: str) -> Tuple[List[Room], List[str]]:
     matched_types = sorted({entities[i].type for i in room_ids})
     for eid in sorted(room_ids):
         e = entities[eid]
-        pts = _collect_points_near(entities, e.refs())
+        pts = _collect_points_near(entities, e.refs(), max_depth=5, max_visit=600)
         outline = Polygon(points=pts) if len(pts) >= 3 else None
         if outline is None:
             n_no_outline += 1
@@ -336,11 +356,18 @@ def extract_rooms(text: str) -> Tuple[List[Room], List[str]]:
             raw={"step_id": eid, "type": e.type, "points_found": len(pts)},
         ))
 
-    warnings.append(
-        f"{len(rooms)} room-like STEP record(s) found by NAME HEURISTIC "
-        f"only (matched type(s): {', '.join(matched_types)}) — this is not "
-        f"a confirmed room type for this evo version, treat as a lead to "
-        f"verify against DIALux's own room list, not a trusted result.")
+    if used_instance_filter:
+        warnings.append(
+            f"{len(rooms)} room instance(s) found via confirmed type(s) "
+            f"{', '.join(matched_types)} (satellite records of the same "
+            f"name-heuristic match — *PropertySet/*RepresentationData/*Info "
+            f"— were excluded so each real room reports as one row).")
+    else:
+        warnings.append(
+            f"{len(rooms)} room-like STEP record(s) found by NAME HEURISTIC "
+            f"only (matched type(s): {', '.join(matched_types)}) — this is not "
+            f"a confirmed room type for this evo version, treat as a lead to "
+            f"verify against DIALux's own room list, not a trusted result.")
     if n_no_outline:
         warnings.append(
             f"{n_no_outline} of {len(rooms)} room-like record(s) had no "

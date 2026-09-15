@@ -296,10 +296,17 @@ def sheet_isolines(study: Study, grid: CalcGrid):
     return fig
 
 
-def sheet_value_grid(study: Study, grid: CalcGrid, max_labels: int = 400):
-    """The numeric value at each calculation point, as evo prints it."""
-    fig = _sheet("Illuminance — calculation point values",
-                 f"{grid.name} · E in lx at each grid point")
+def sheet_value_grid(study: Study, grid: CalcGrid, max_labels: int = 400,
+                     colored: bool = True):
+    """The numeric value at each calculation point, as evo prints it.
+
+    `colored=True` (default) overlays the same false-colour band scale used
+    on the false-colour/isoline sheets, tinting the cell behind each number.
+    `colored=False` renders DIALux's plain "Values" sheet instead — a plain
+    white grid with only the printed numbers and grid lines, no colour."""
+    title = ("Illuminance — calculation point values" if colored else
+             "Illuminance — calculation point values (plain, no colour)")
+    fig = _sheet(title, f"{grid.name} · E in lx at each grid point")
     ax = fig.add_axes([0.05, 0.12, 0.62, 0.74])
 
     v = grid.values
@@ -308,10 +315,24 @@ def sheet_value_grid(study: Study, grid: CalcGrid, max_labels: int = 400):
     ys = np.linspace(y0, y1, grid.ny)
     vmin, vmax = float(np.nanmin(v)), float(np.nanmax(v))
 
-    levels = nice_levels(vmin, vmax, n=10)
-    ax.imshow(v, origin="lower", extent=(x0, x1, y0, y1),
-              cmap=false_colour_cmap(len(levels) - 1), norm=band_norm(levels),
-              interpolation="nearest", alpha=0.55, zorder=1)
+    if colored:
+        levels = nice_levels(vmin, vmax, n=10)
+        ax.imshow(v, origin="lower", extent=(x0, x1, y0, y1),
+                  cmap=false_colour_cmap(len(levels) - 1), norm=band_norm(levels),
+                  interpolation="nearest", alpha=0.55, zorder=1)
+        label_colour = "#15181c"
+        stroke_colour = "white"
+    else:
+        # Plain sheet: white background, thin grid lines at each sample
+        # point (matching DIALux's own "Values" print sheet), black text,
+        # no colour anywhere.
+        ax.set_facecolor("#ffffff")
+        for xv in xs:
+            ax.axvline(xv, color="#dddddd", linewidth=0.4, zorder=1)
+        for yv in ys:
+            ax.axhline(yv, color="#dddddd", linewidth=0.4, zorder=1)
+        label_colour = "#000000"
+        stroke_colour = None
 
     # Thin the labels. A 48x32 grid is 1536 numbers, which is unreadable on a
     # sheet, so print roughly a 16x12 sample the way DIALux does.
@@ -326,10 +347,11 @@ def sheet_value_grid(study: Study, grid: CalcGrid, max_labels: int = 400):
             val = v[j, i]
             if not np.isfinite(val):
                 continue
+            path_effects = ([pe.withStroke(linewidth=1.6, foreground=stroke_colour)]
+                            if stroke_colour else None)
             ax.text(xs[i], ys[j], f"{val:.0f}", fontsize=6.0, ha="center",
-                    va="center", zorder=6, color="#15181c",
-                    path_effects=[pe.withStroke(linewidth=1.6,
-                                                foreground="white")])
+                    va="center", zorder=6, color=label_colour,
+                    path_effects=path_effects)
 
     _draw_outlines(ax, study, filled=False)
     _draw_luminaires(ax, study, size=0.18)
@@ -337,7 +359,7 @@ def sheet_value_grid(study: Study, grid: CalcGrid, max_labels: int = 400):
     ax.grid(False)
 
     _metrics_box(ax, grid, fig=fig, rect=[0.72, 0.60, 0.26, 0.26])
-    _footer(fig, study, "Values")
+    _footer(fig, study, "Values" if colored else "Values (plain)")
     return fig
 
 
