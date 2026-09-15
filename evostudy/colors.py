@@ -117,6 +117,24 @@ def false_colour_cmap(n_bands: int) -> ListedColormap:
     return ListedColormap(cols)
 
 
+def band_hex_colours(levels: Sequence[float]) -> List[str]:
+    """The exact hex colours for each band in `levels`, resampled from the
+    same DIALux-style palette used everywhere else (PDF sheets, per-fixture
+    PNGs) — so the interactive web views use the identical scale, not a
+    separate approximation."""
+    n_bands = max(len(levels) - 1, 1)
+    cmap = false_colour_cmap(n_bands)
+    return ["#%02x%02x%02x" % tuple(int(round(c * 255)) for c in cmap(i)[:3])
+            for i in range(n_bands)]
+
+
+def band_index(value: float, levels: Sequence[float]) -> int:
+    """Which band (0-based) `value` falls into, clamped to the palette."""
+    n_bands = max(len(levels) - 1, 1)
+    idx = int(np.searchsorted(levels, value, side="right") - 1)
+    return min(max(idx, 0), n_bands - 1)
+
+
 def value_text_colour(value: float, vmin: float, vmax: float) -> str:
     """Black or white label text, whichever stays readable on the band."""
     if vmax <= vmin:

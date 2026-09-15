@@ -32,7 +32,8 @@ import matplotlib
 matplotlib.use("Agg")
 
 from evostudy.archive import EvoArchive
-from evostudy.pipeline import (export_csv, export_dashboard, export_json,
+from evostudy.pipeline import (export_calculations, export_csv,
+                                export_dashboard, export_json,
                                 export_per_fixture, export_report, load_study)
 
 BASE = Path(__file__).parent
@@ -342,10 +343,13 @@ def run_pipeline(job_id: str, src_path: Path, orig_name: str,
         out_dir = jdir / "output"
         out_dir.mkdir(exist_ok=True)
 
-        set_status(job_id, "Building the interactive dashboard", 80)
+        set_status(job_id, "Building the interactive dashboard", 78)
         export_dashboard(study, str(out_dir / "dashboard.html"))
 
-        set_status(job_id, "Writing JSON + CSV data", 92)
+        set_status(job_id, "Building the calculations page", 85)
+        export_calculations(study, str(out_dir / "calculations.html"))
+
+        set_status(job_id, "Writing JSON + CSV + TXT tables", 92)
         export_json(study, str(out_dir / "study.json"))
         export_csv(study, str(out_dir))
 

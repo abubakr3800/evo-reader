@@ -155,6 +155,7 @@ def result(job_id):
     out_dir = jdir / "output"
     output_rows = []
     has_dashboard = (out_dir / "dashboard.html").exists()
+    has_calculations = (out_dir / "calculations.html").exists()
     has_pdf = (out_dir / "study.pdf").exists()
     sheets_dir = out_dir / "sheets"
     has_images = sheets_dir.exists() and any(sheets_dir.iterdir())
@@ -178,7 +179,8 @@ def result(job_id):
     return render_template(
         "result.html", job_id=job_id, orig_name=orig_name, error=None,
         pipeline_error=pipeline_error, file_rows=file_rows, output_rows=output_rows,
-        has_dashboard=has_dashboard, has_pdf=has_pdf, has_images=has_images,
+        has_dashboard=has_dashboard, has_calculations=has_calculations,
+        has_pdf=has_pdf, has_images=has_images,
         study_json=study_json,
     )
 
@@ -191,6 +193,11 @@ def serve_output(job_id, filename):
 @app.route("/dashboard/<job_id>")
 def dashboard(job_id):
     return send_from_directory(job_dir(job_id) / "output", "dashboard.html")
+
+
+@app.route("/calculations/<job_id>")
+def calculations(job_id):
+    return send_from_directory(job_dir(job_id) / "output", "calculations.html")
 
 
 if __name__ == "__main__":

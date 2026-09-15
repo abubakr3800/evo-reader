@@ -26,6 +26,7 @@ import numpy as np
 
 from ..estimate import FixtureContribution, estimate_all_fixtures
 from ..model import CalcGrid, Study
+from .nav import PAGE_NAV_CSS, page_nav_html
 
 CSS = """
 :root{
@@ -80,7 +81,7 @@ canvas{width:100%;border:1px solid var(--border);border-radius:8px;
 .note{font-size:12.5px;color:var(--sub);background:#fdf4e3;
   border:1px solid #f0dfb0;border-radius:8px;padding:10px 12px;margin-top:10px}
 footer{text-align:center;color:var(--sub);font-size:12px;padding:30px 0 10px}
-"""
+""" + PAGE_NAV_CSS
 
 JS_HEATMAP = r"""
 function drawHeatmap(canvas, values, nx, ny, extent, luminaires, label) {
@@ -388,6 +389,7 @@ def build_dashboard(study: Study, max_fixture_layers: int = 10) -> str:
   <div class="sub">{study.company or ""}{" · " if study.company and study.author else ""}{study.author or ""}
   {" · " if (study.company or study.author) and study.dialux_version else ""}{study.dialux_version or ""}</div>
 </header>
+{page_nav_html("dashboard.html")}
 <main>
   {cards}
 

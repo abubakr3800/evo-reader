@@ -119,6 +119,28 @@ class CalcGrid:
             "points": int(v.size),
         }
 
+    def extrema(self) -> Dict[str, Dict[str, float]]:
+        """Location (in the same x/y units as `extent`) and value of the
+        darkest and brightest calculation points — what DIALux marks with
+        a small circle on its isoline/value sheets."""
+        if self.values is None or self.values.size == 0:
+            return {}
+        v = self.values
+        if not np.isfinite(v).any():
+            return {}
+        x0, y0, x1, y1 = self.extent or (0.0, 0.0, float(self.nx), float(self.ny))
+        xs = np.linspace(x0, x1, max(self.nx, 1))
+        ys = np.linspace(y0, y1, max(self.ny, 1))
+        masked = np.where(np.isfinite(v), v, np.nan)
+        j_min, i_min = np.unravel_index(np.nanargmin(masked), masked.shape)
+        j_max, i_max = np.unravel_index(np.nanargmax(masked), masked.shape)
+        return {
+            "min": {"x": float(xs[i_min]), "y": float(ys[j_min]),
+                    "value": float(v[j_min, i_min])},
+            "max": {"x": float(xs[i_max]), "y": float(ys[j_max]),
+                    "value": float(v[j_max, i_max])},
+        }
+
 
 @dataclass
 class EnvironmentReading:

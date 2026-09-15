@@ -187,6 +187,7 @@
   <a href="#overview">Overview</a>
   {% if study_json.grids %}<a href="#grids">Grids</a>{% endif %}
   {% if has_dashboard %}<a href="#dashboard-section">Dashboard</a>{% endif %}
+  {% if has_calculations %}<a href="#calculations-section">Calculations</a>{% endif %}
   <a href="#archive">Archive</a>
   {% if output_rows %}<a href="#downloads">Downloads</a>{% endif %}
 </nav>
@@ -351,6 +352,26 @@
     <p class="muted">Nothing is rendered as an image until you ask for it above — the numbers and the dashboard already show everything recovered. Generate just the PDF, just the PNG sheets, or both.</p>
     <div class="dash-frame-wrap" id="dashFrameWrap">
       <iframe src="{{ url_for('dashboard', job_id=job_id) }}" title="Interactive dashboard"></iframe>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if has_calculations %}
+  <section id="calculations-section">
+    <div class="section-head">
+      <div>
+        <h2>Calculations</h2>
+        <p class="section-desc">The printed value chart (lux numbers on the DIALux false-colour scale) plus Eav/Emin/Emax, uniformities, and the min/max point locations for each surface.</p>
+      </div>
+      <div class="section-tools">
+        <a class="btn secondary small" href="{{ url_for('calculations', job_id=job_id) }}" target="_blank" rel="noopener">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          Open full-screen
+        </a>
+      </div>
+    </div>
+    <div class="dash-frame-wrap">
+      <iframe src="{{ url_for('calculations', job_id=job_id) }}" title="Calculations" style="height:1100px"></iframe>
     </div>
   </section>
   {% endif %}

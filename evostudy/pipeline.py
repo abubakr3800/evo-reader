@@ -142,6 +142,17 @@ def export_dashboard(study: Study, out: str) -> str:
     return out
 
 
+def export_calculations(study: Study, out: str) -> str:
+    """Write the self-contained 'Calculations' HTML page — the printed
+    value chart (DIALux false-colour bands + numbers) and the metrics/
+    extrema panel — next to the dashboard."""
+    from .render import build_calculations_page
+    out = str(out)
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text(build_calculations_page(study), encoding="utf-8")
+    return out
+
+
 def export_per_fixture(study: Study, outdir: str, dpi: int = 150,
                        max_fixtures: int = 60) -> List[str]:
     """
@@ -281,53 +292,137 @@ def export_report(study: Study, pdf_path: Optional[str] = None,
     return pdf_path, written_pngs
 
 
+def _write_table(rows: List[dict], columns: List[str], base: Path) -> List[str]:
+    """One table, three downloadable formats from a single source of truth
+    (a list of plain dicts) — .json (list of objects), .csv, and a
+    space-aligned .txt. No format is derived from another on disk; all
+    three are written straight from `rows`."""
+    written = []
+
+    jp = base.with_suffix(".json")
+    jp.write_text(json.dumps(rows, indent=2, ensure_ascii=False, default=str),
+                  encoding="utf-8")
+    written.append(str(jp))
+
+    cp = base.with_suffix(".csv")
+    with cp.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(columns)
+        for r in rows:
+            w.writerow([r.get(c, "") for c in columns])
+    written.append(str(cp))
+
+    tp = base.with_suffix(".txt")
+    widths = [max(len(str(c)), max((len(str(r.get(c, ""))) for r in rows), default=0))
+              for c in columns]
+    lines = ["  ".join(str(c).ljust(w) for c, w in zip(columns, widths)),
+             "  ".join("-" * w for w in widths)]
+    lines += ["  ".join(str(r.get(c, "")).ljust(w) for c, w in zip(columns, widths))
+              for r in rows]
+    tp.write_text("\n".join(lines), encoding="utf-8")
+    written.append(str(tp))
+    return written
+
+
+def _write_grid_table(grid: CalcGrid, base: Path) -> List[str]:
+    """The full lux matrix for one calculation surface, as .json (axes +
+    2-D array), .csv, and .txt (both matrix layouts, y rows x x columns)."""
+    written = []
+    x0, y0, x1, y1 = grid.extent or (0, 0, grid.nx, grid.ny)
+    xs = np.linspace(x0, x1, grid.nx)
+    ys = np.linspace(y0, y1, grid.ny)
+    values = grid.values.round(2).tolist() if grid.values is not None else []
+
+    jp = base.with_suffix(".json")
+    jp.write_text(json.dumps({
+        "surface": grid.name, "x_m": [round(float(x), 3) for x in xs],
+        "y_m": [round(float(y), 3) for y in ys], "unit": "lx", "values": values,
+    }, indent=2), encoding="utf-8")
+    written.append(str(jp))
+
+    def _matrix_rows(fmt: str):
+        header = ["y\\x"] + [f"{x:.3f}" for x in xs]
+        rows = [header]
+        for j, yv in enumerate(ys):
+            rows.append([f"{yv:.3f}"] + [fmt.format(v) for v in grid.values[j]])
+        return rows
+
+    cp = base.with_suffix(".csv")
+    with cp.open("w", newline="", encoding="utf-8") as fh:
+        csv.writer(fh).writerows(_matrix_rows("{:.1f}"))
+    written.append(str(cp))
+
+    rows = _matrix_rows("{:.1f}")
+    widths = [max(len(str(c)) for c in col) for col in zip(*rows)]
+    tp = base.with_suffix(".txt")
+    tp.write_text("\n".join("  ".join(c.ljust(w) for c, w in zip(row, widths))
+                            for row in rows), encoding="utf-8")
+    written.append(str(tp))
+    return written
+
+
 def export_csv(study: Study, outdir: str) -> List[str]:
-    """Luminaire schedule + one CSV grid per calculation surface."""
+    """Every table as JSON + CSV + TXT: luminaire schedule, rooms, the
+    per-surface results summary (now with the min/max point location), and
+    one full lux grid per calculation surface. (Function name kept as
+    export_csv for compatibility with existing callers — CSV is only one
+    of the three formats it now writes.)"""
     d = Path(outdir); d.mkdir(parents=True, exist_ok=True)
     written = []
 
-    lum = d / "luminaires.csv"
-    with lum.open("w", newline="", encoding="utf-8") as fh:
-        w = csv.writer(fh)
-        w.writerow(["id", "name", "manufacturer", "article_no",
-                    "x_m", "y_m", "z_m", "rotation_deg",
-                    "flux_lm", "power_W", "efficacy_lm_W", "cct_K", "count"])
-        for l in study.luminaires:
-            w.writerow([l.id, l.name, l.manufacturer, l.article_no,
-                        f"{l.x:.4f}", f"{l.y:.4f}", f"{l.z:.4f}",
-                        f"{l.rotation:.2f}", l.luminous_flux or "",
-                        l.power or "", f"{l.efficacy:.1f}" if l.efficacy else "",
-                        l.cct or "", l.count])
-    written.append(str(lum))
+    lum_rows = [{
+        "id": l.id, "name": l.name, "manufacturer": l.manufacturer,
+        "article_no": l.article_no, "x_m": round(l.x, 4), "y_m": round(l.y, 4),
+        "z_m": round(l.z, 4), "rotation_deg": round(l.rotation, 2),
+        "flux_lm": l.luminous_flux, "power_W": l.power,
+        "efficacy_lm_W": round(l.efficacy, 1) if l.efficacy else None,
+        "cct_K": l.cct, "count": l.count,
+    } for l in study.luminaires]
+    written += _write_table(lum_rows, list(lum_rows[0].keys()) if lum_rows else
+                            ["id", "name", "manufacturer", "article_no", "x_m",
+                             "y_m", "z_m", "rotation_deg", "flux_lm", "power_W",
+                             "efficacy_lm_W", "cct_K", "count"], d / "luminaires")
+
+    room_rows = [{
+        "id": r.id, "name": r.name, "area_m2": round(r.area, 2),
+        "height_m": r.height, "reflectance_ceiling": r.reflectance_ceiling,
+        "reflectance_walls": r.reflectance_walls,
+        "reflectance_floor": r.reflectance_floor,
+        "maintenance_factor": r.maintenance_factor,
+    } for r in study.rooms]
+    written += _write_table(room_rows, ["id", "name", "area_m2", "height_m",
+                                        "reflectance_ceiling", "reflectance_walls",
+                                        "reflectance_floor", "maintenance_factor"],
+                            d / "rooms")
 
     for i, g in enumerate(study.grids, start=1):
         if g.values is None:
             continue
-        p = d / f"grid_{i}_{_slug(g.name)}.csv"
-        x0, y0, x1, y1 = g.extent or (0, 0, g.nx, g.ny)
-        xs = np.linspace(x0, x1, g.nx)
-        ys = np.linspace(y0, y1, g.ny)
-        with p.open("w", newline="", encoding="utf-8") as fh:
-            w = csv.writer(fh)
-            w.writerow(["y\\x"] + [f"{x:.3f}" for x in xs])
-            for j, yv in enumerate(ys):
-                w.writerow([f"{yv:.3f}"] + [f"{v:.1f}" for v in g.values[j]])
-        written.append(str(p))
+        written += _write_grid_table(g, d / f"grid_{i}_{_slug(g.name)}")
 
-    meta = d / "results_summary.csv"
-    with meta.open("w", newline="", encoding="utf-8") as fh:
-        w = csv.writer(fh)
-        w.writerow(["surface", "Eav_lx", "Emin_lx", "Emax_lx",
-                    "u0", "Emin/Emax", "points", "nx", "ny", "confidence"])
-        for g in study.grids:
-            m = g.metrics()
-            if not m:
-                continue
-            w.writerow([g.name, f"{m['Eav']:.1f}", f"{m['Emin']:.1f}",
-                        f"{m['Emax']:.1f}", f"{m['u0']:.3f}",
-                        f"{m['Emin/Emax']:.3f}", m["points"],
-                        g.nx, g.ny, f"{g.confidence:.2f}"])
-    written.append(str(meta))
+    summary_cols = ["surface", "Eav_lx", "Emin_lx", "Emax_lx", "u0", "Emin/Emax",
+                    "Emax/Eav", "median_lx", "std_lx", "points", "nx", "ny",
+                    "confidence", "min_point_x_m", "min_point_y_m",
+                    "max_point_x_m", "max_point_y_m"]
+    summary_rows = []
+    for g in study.grids:
+        m = g.metrics()
+        if not m:
+            continue
+        ext = g.extrema()
+        summary_rows.append({
+            "surface": g.name, "Eav_lx": round(m["Eav"], 1),
+            "Emin_lx": round(m["Emin"], 1), "Emax_lx": round(m["Emax"], 1),
+            "u0": round(m["u0"], 3), "Emin/Emax": round(m["Emin/Emax"], 3),
+            "Emax/Eav": round(m["Emax/Eav"], 3), "median_lx": round(m["median"], 1),
+            "std_lx": round(m["std"], 1), "points": m["points"],
+            "nx": g.nx, "ny": g.ny, "confidence": round(g.confidence, 2),
+            "min_point_x_m": round(ext["min"]["x"], 3) if ext else None,
+            "min_point_y_m": round(ext["min"]["y"], 3) if ext else None,
+            "max_point_x_m": round(ext["max"]["x"], 3) if ext else None,
+            "max_point_y_m": round(ext["max"]["y"], 3) if ext else None,
+        })
+    written += _write_table(summary_rows, summary_cols, d / "results_summary")
     return written
 
 
