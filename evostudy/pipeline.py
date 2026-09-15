@@ -52,11 +52,12 @@ def load_study(path: str, mapping_file: Optional[str] = None,
     # reporting 0 luminaires as if ProjectData.xml were the whole story.
     if not study.luminaires and not study.rooms and arc.project_dat is not None:
         _tick("Recovering luminaires from ProjectData.dat", 0.20)
-        from .parse_step import extract_luminaires
+        from .parse_step import extract_luminaires, extract_rooms
         try:
             dat_text = arc.project_dat.read().decode("utf-8", errors="replace")
             recovered, step_warnings = extract_luminaires(dat_text)
         except Exception as exc:
+            dat_text = None
             recovered, step_warnings = [], [f"ProjectData.dat STEP recovery failed: {exc}"]
         if recovered:
             study.luminaires = recovered
@@ -69,6 +70,21 @@ def load_study(path: str, mapping_file: Optional[str] = None,
                 f"records were found in it — this evo version may use a "
                 f"different record type name. Run `evostudy probe --file "
                 f"{arc.project_dat.path}` and inspect it directly.")
+
+        # extract_luminaires() has no equivalent for rooms — there is no
+        # confirmed room/space STEP type name yet, so this is a
+        # name-heuristic best effort that also always reports the file's
+        # full entity-type inventory, so a real fix can target the right
+        # type name instead of guessing blind a second time.
+        if not study.rooms and dat_text is not None:
+            _tick("Looking for room/space records in ProjectData.dat", 0.23)
+            try:
+                room_recovered, room_warnings = extract_rooms(dat_text)
+            except Exception as exc:
+                room_recovered, room_warnings = [], [
+                    f"ProjectData.dat room recovery failed: {exc}"]
+            study.rooms = room_recovered
+            study.warnings.extend(room_warnings)
 
     # Results
     groups = arc.result_groups()

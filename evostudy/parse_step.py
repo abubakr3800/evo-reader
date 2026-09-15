@@ -32,7 +32,7 @@ import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from .model import Luminaire
+from .model import Luminaire, Polygon, Room
 
 REF_RE = re.compile(r"#(\d+)")
 RECORD_START_RE = re.compile(r"#(\d+)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(")
@@ -217,6 +217,139 @@ def _resolve_product(entities: Dict[int, StepEntity], prototype_id: int,
             article = _extract_article_name(entities, text_ref)
     cache[prototype_id] = (manufacturer, article)
     return manufacturer, article
+
+
+def list_entity_types(text: str) -> "Counter[str]":
+    """Every distinct `#id = TypeName(...)` type name in this STEP file,
+    with counts. Use this to see what's actually in a given evo version's
+    ProjectData.dat when a targeted extractor (extract_luminaires,
+    extract_rooms) comes back empty — cheaper than guessing type names
+    blind, and it's how the LuminaireElement/CoordSys3D/ProductData names
+    already used elsewhere in this module were originally found."""
+    from collections import Counter
+    entities = parse_step_entities(text)
+    return Counter(e.type for e in entities.values())
+
+
+# Case-insensitive substrings that a room/space-like STEP entity type is
+# likely to contain. Unconfirmed against a published schema — this is a
+# naming heuristic, not a known type list, so extract_rooms() always
+# reports which type name(s) it actually matched.
+_ROOM_TYPE_HINTS = ("room", "raum", "space", "zone")
+
+# Candidate type names (also unconfirmed) whose args might hold a boundary
+# point sequence, tried in order when following references out of a
+# room-like record looking for its outline.
+_POLY_TYPE_HINTS = ("polygon", "polyloop", "polyline", "outline", "boundary",
+                    "contour", "profile")
+_POINT_TYPE_HINTS = ("point", "coord")
+
+
+def _collect_points_near(entities: Dict[int, "StepEntity"], start_ids: List[int],
+                         max_depth: int = 3, max_visit: int = 300
+                         ) -> List[Tuple[float, float]]:
+    """Best-effort: BFS out from `start_ids` for entities whose type name
+    looks point/coordinate-like, and read an (x, y[, z]) triplet or pair
+    out of their args if one parses. No confirmed schema backs this —
+    it's the same evidence-first approach as _find_coordsys, just without
+    a known type name to anchor on, so treat any polygon it produces as a
+    lead to verify, not a trusted result."""
+    seen = set(start_ids)
+    frontier = list(start_ids)
+    depth = 0
+    visited = 0
+    pts: List[Tuple[float, float]] = []
+    while frontier and depth < max_depth and visited < max_visit:
+        nxt = []
+        for eid in frontier:
+            e = entities.get(eid)
+            visited += 1
+            if e is None:
+                continue
+            tlow = e.type.lower()
+            if any(h in tlow for h in _POINT_TYPE_HINTS):
+                nums = re.findall(r"-?\d+\.?\d*(?:[eE][-+]?\d+)?", e.args)
+                if len(nums) >= 2:
+                    try:
+                        pts.append((float(nums[0]), float(nums[1])))
+                    except ValueError:
+                        pass
+                continue  # don't chase refs further from a point itself
+            for r in e.refs():
+                if r not in seen:
+                    seen.add(r)
+                    nxt.append(r)
+        frontier = nxt
+        depth += 1
+    return pts
+
+
+def extract_rooms(text: str) -> Tuple[List[Room], List[str]]:
+    """
+    Best-effort room/space recovery from ProjectData.dat, for evo builds
+    where ProjectData.xml is a schema registry rather than instance data
+    (the same case extract_luminaires() handles) and no LuminaireElement-
+    style extractor for rooms exists yet.
+
+    Unlike extract_luminaires(), this has no confirmed type name to anchor
+    on (LuminaireElement was confirmed by inspecting real files; no
+    equivalent room type name has been confirmed yet). It matches entity
+    type names that merely *look* room-like, and — whether or not that
+    matches anything — always reports the full inventory of distinct type
+    names actually present, so a real fix can target the right name
+    instead of guessing again next time.
+    """
+    warnings: List[str] = []
+    entities = parse_step_entities(text)
+    if not entities:
+        return [], ["ProjectData.dat did not parse as a STEP entity graph "
+                    "(no '#id = Type(...)' records found)."]
+
+    type_counts = list_entity_types(text)
+    inventory = ", ".join(f"{t} x{n}" for t, n in
+                          sorted(type_counts.items(), key=lambda kv: -kv[1])[:60])
+
+    room_ids = [eid for eid, e in entities.items()
+               if any(h in e.type.lower() for h in _ROOM_TYPE_HINTS)]
+
+    if not room_ids:
+        warnings.append(
+            f"No room outline recovered: no STEP entity type name looked "
+            f"room-like (matched against {_ROOM_TYPE_HINTS}) among "
+            f"{len(type_counts)} distinct types in ProjectData.dat. The "
+            f"real room/space type name for this evo version is still "
+            f"unconfirmed. Full type inventory ({sum(type_counts.values())} "
+            f"records): {inventory}")
+        return [], warnings
+
+    rooms: List[Room] = []
+    n_no_outline = 0
+    matched_types = sorted({entities[i].type for i in room_ids})
+    for eid in sorted(room_ids):
+        e = entities[eid]
+        pts = _collect_points_near(entities, e.refs())
+        outline = Polygon(points=pts) if len(pts) >= 3 else None
+        if outline is None:
+            n_no_outline += 1
+        rooms.append(Room(
+            id=str(eid), name=f"{e.type} #{eid}", outline=outline,
+            raw={"step_id": eid, "type": e.type, "points_found": len(pts)},
+        ))
+
+    warnings.append(
+        f"{len(rooms)} room-like STEP record(s) found by NAME HEURISTIC "
+        f"only (matched type(s): {', '.join(matched_types)}) — this is not "
+        f"a confirmed room type for this evo version, treat as a lead to "
+        f"verify against DIALux's own room list, not a trusted result.")
+    if n_no_outline:
+        warnings.append(
+            f"{n_no_outline} of {len(rooms)} room-like record(s) had no "
+            f"outline recovered — the point/coordinate type name for a "
+            f"room boundary on this evo version is also unconfirmed "
+            f"(tried type names containing {_POINT_TYPE_HINTS}).")
+    warnings.append(f"Full ProjectData.dat type inventory "
+                    f"({sum(type_counts.values())} records): {inventory}")
+    return rooms, warnings
 
 
 def extract_luminaires(text: str) -> Tuple[List[Luminaire], List[str]]:
