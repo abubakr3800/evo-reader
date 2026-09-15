@@ -30,7 +30,7 @@ from evostudy.archive import EvoArchive
 from evostudy.pipeline import (export_csv, export_dashboard, export_json,
                                 export_per_fixture, export_report, load_study)
 
-BASE = Path(__file__).parent
+BASE = Path(__file__)
 UPLOAD_ROOT = BASE / "uploads"
 UPLOAD_ROOT.mkdir(exist_ok=True)
 
