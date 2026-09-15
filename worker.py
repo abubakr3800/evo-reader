@@ -42,15 +42,19 @@ LOCK_PATH = jobs.QUEUE_DIR / "worker.lock"
 IDLE_POLL_S = 3
 
 
+def _log(msg: str):
+    print(msg, flush=True)
+
+
 def main():
     lock_fh = open(LOCK_PATH, "w")
     try:
         fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
-        print("Another worker instance holds the lock — exiting.")
+        _log("Another worker instance holds the lock — exiting.")
         return
 
-    print(f"Worker started, watching {jobs.QUEUE_DIR}")
+    _log(f"Worker started (pid={__import__('os').getpid()}), watching {jobs.QUEUE_DIR}")
     while True:
         req = jobs.claim_next_job()
         if req is None:
@@ -58,7 +62,7 @@ def main():
             continue
 
         kind = req.get("kind", "pipeline")
-        print(f"Processing {kind} job {req['job_id']}")
+        _log(f"Processing {kind} job {req['job_id']}")
         if kind == "report":
             jobs.run_report(
                 req["job_id"],
@@ -73,7 +77,7 @@ def main():
                 make_pdf=req.get("make_pdf", False),
                 make_images=req.get("make_images", False),
             )
-        print(f"Finished job {req['job_id']}")
+        _log(f"Finished job {req['job_id']}")
 
 
 if __name__ == "__main__":
