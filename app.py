@@ -10,12 +10,21 @@ Run:
 
 from __future__ import annotations
 
+import json
 import shutil
 import threading
+import time
 import traceback
 import uuid
 from datetime import datetime
 from pathlib import Path
+
+# If a job's status hasn't been updated in this long and it isn't marked
+# done, assume the worker process that was running it got recycled by
+# Passenger (restarts on file changes, idle timeouts, etc. are normal on
+# shared hosting) and its daemon thread died with it, rather than leaving
+# the person staring at a progress bar that will never move again.
+STALL_TIMEOUT_S = 90
 
 import matplotlib
 matplotlib.use("Agg")  # headless — the exports run in a background thread,
@@ -38,16 +47,59 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # 300 MB
 
 # In-memory job status: job_id -> {stage, percent, done, error, orig_name}
-# Fine for a single-user local tool; swap for redis/db if this ever needs
-# to survive a restart or serve multiple concurrent users.
+#
+# IMPORTANT if you're running this behind Passenger/mod_wsgi (cPanel-style
+# shared hosting) rather than `python app.py` locally: this dict lives in
+# ONE process's memory. Passenger commonly runs more than one worker
+# process for the same app, and load-balances requests across them, and it
+# restarts a worker whenever it notices a file under the app changed. Your
+# /upload request (and the background thread it starts) lands in whichever
+# worker handled it; a later /status or /progress poll can easily land in a
+# *different* worker that has never heard of that job_id — which is exactly
+# what an "unknown job" / stuck-at-some-% / "Failed" progress bar means.
+# It isn't the pipeline crashing; the poll just can't see the worker that's
+# running it. Persisting status to a file per job (below) fixes the "wrong
+# worker" case. It can't fix a mid-job worker *restart* killing the
+# background thread outright — see the note on run_pipeline for that.
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
+
+
+def _status_file(job_id: str) -> Path:
+    return job_dir(job_id) / "status.json"
 
 
 def set_status(job_id: str, stage: str, percent: float, **extra):
     with JOBS_LOCK:
         JOBS.setdefault(job_id, {}).update(
-            stage=stage, percent=round(min(max(percent, 0), 100), 1), **extra)
+            stage=stage, percent=round(min(max(percent, 0), 100), 1),
+            updated_at=time.time(), **extra)
+        snapshot = dict(JOBS[job_id])
+    # Best-effort disk mirror so a *different* worker process — or this same
+    # process after a restart — can still answer /status accurately instead
+    # of returning "unknown job". Never let a write failure break the job.
+    try:
+        job_dir(job_id).mkdir(parents=True, exist_ok=True)
+        _status_file(job_id).write_text(json.dumps(snapshot))
+    except OSError:
+        pass
+
+
+def get_status(job_id: str) -> dict | None:
+    """Memory first (freshest, and works even before the file is flushed),
+    falling back to the on-disk mirror for a job this process never saw
+    start — the case that produces "unknown job" with memory alone."""
+    with JOBS_LOCK:
+        live = JOBS.get(job_id)
+    if live is not None:
+        return live
+    sf = _status_file(job_id)
+    if sf.exists():
+        try:
+            return json.loads(sf.read_text())
+        except (OSError, ValueError):
+            return None
+    return None
 
 
 # --------------------------------------------------------------------------- helpers
@@ -93,8 +145,7 @@ def list_jobs() -> list[dict]:
         manifest = jdir / "manifest_note.txt"
         orig_name = manifest.read_text().strip() if manifest.exists() else "(unknown file)"
 
-        with JOBS_LOCK:
-            live = JOBS.get(job_id)
+        live = get_status(job_id)
 
         out_dir = jdir / "output"
         has_output = out_dir.exists() and any(out_dir.iterdir())
@@ -289,12 +340,29 @@ def progress_page(job_id):
     return render_template("progress.html", job_id=job_id)
 
 
+def _interrupted_response():
+    return jsonify({"stage": "Interrupted — the app process was likely "
+                     "restarted or recycled mid-job (common on shared "
+                     "hosting). Please re-upload.",
+                     "percent": 0, "done": True,
+                     "error": "job status lost or stalled (process restart)"})
+
+
 @app.route("/status/<job_id>")
 def status(job_id):
-    with JOBS_LOCK:
-        s = JOBS.get(job_id)
+    s = get_status(job_id)
     if s is None:
+        if job_dir(job_id).exists():
+            # The folder exists but no status was ever recorded for it (or
+            # the file got removed) — most likely the worker that started
+            # this job was restarted mid-run and its daemon thread died
+            # with it. Say that plainly instead of a bare 404, since "the
+            # pipeline crashed" and "the process got recycled" need
+            # different fixes.
+            return _interrupted_response()
         return jsonify({"error": "unknown job"}), 404
+    if not s.get("done") and time.time() - s.get("updated_at", 0) > STALL_TIMEOUT_S:
+        return _interrupted_response()
     return jsonify(s)
 
 
