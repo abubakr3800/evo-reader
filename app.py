@@ -176,12 +176,36 @@ def result(job_id):
             except Exception:
                 study_json = {}
 
+    # Group the three sibling formats of each table export (luminaires,
+    # rooms, results_summary, and each grid_N_* matrix) so the page can show
+    # one row with JSON / CSV / TXT buttons, instead of making the user hunt
+    # through the flat file list for the format they want.
+    table_groups = {}
+    TABLE_LABELS = {
+        "luminaires": "Luminaire schedule",
+        "rooms": "Room schedule",
+        "results_summary": "Results summary (Eav/Emin/Emax, uniformities, min/max points)",
+    }
+    for o in output_rows:
+        path = Path(o["path"])
+        if path.suffix.lower() not in (".json", ".csv", ".txt"):
+            continue
+        stem = path.stem
+        label = TABLE_LABELS.get(stem)
+        if label is None and stem.startswith("grid_"):
+            label = f"Grid — {stem.split('_', 2)[-1].replace('_', ' ')}"
+        if label is None:
+            continue
+        g = table_groups.setdefault(stem, {"label": label, "formats": {}})
+        g["formats"][path.suffix.lower().lstrip(".")] = o["path"]
+    table_groups = [table_groups[k] for k in sorted(table_groups)]
+
     return render_template(
         "result.html", job_id=job_id, orig_name=orig_name, error=None,
         pipeline_error=pipeline_error, file_rows=file_rows, output_rows=output_rows,
         has_dashboard=has_dashboard, has_calculations=has_calculations,
         has_pdf=has_pdf, has_images=has_images,
-        study_json=study_json,
+        study_json=study_json, table_groups=table_groups,
     )
 
 

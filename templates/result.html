@@ -189,6 +189,7 @@
   {% if has_dashboard %}<a href="#dashboard-section">Dashboard</a>{% endif %}
   {% if has_calculations %}<a href="#calculations-section">Calculations</a>{% endif %}
   <a href="#archive">Archive</a>
+  {% if table_groups %}<a href="#table-downloads">Export tables</a>{% endif %}
   {% if output_rows %}<a href="#downloads">Downloads</a>{% endif %}
 </nav>
 
@@ -411,6 +412,33 @@
     </table>
     </div>
   </section>
+
+  {% if table_groups %}
+  <section id="table-downloads">
+    <div class="section-head">
+      <div><h2>Export data tables</h2>
+        <p class="section-desc">Every table is written from the same source data in three formats — pick whichever you need.</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      {% for g in table_groups %}
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;
+                  padding:10px 12px;border:1px solid var(--border-soft);border-radius:8px;flex-wrap:wrap">
+        <span style="font-size:13px">{{ g.label }}</span>
+        <span style="display:flex;gap:6px">
+          {% for fmt in ["json", "csv", "txt"] %}
+            {% if fmt in g.formats %}
+            <a class="btn secondary small" href="{{ url_for('serve_output', job_id=job_id, filename=g.formats[fmt]) }}" download>
+              {{ fmt.upper() }}
+            </a>
+            {% endif %}
+          {% endfor %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 
   {% if output_rows %}
   <section id="downloads">
