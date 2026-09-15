@@ -39,9 +39,31 @@ from evostudy.archive import EvoArchive
 from evostudy.pipeline import (export_csv, export_dashboard, export_json,
                                 export_per_fixture, export_report, load_study)
 
+import os
+
 BASE = Path(__file__).parent
-UPLOAD_ROOT = BASE / "uploads"
-UPLOAD_ROOT.mkdir(exist_ok=True)
+
+# Extraction writes hundreds of files per job, fast, inside a single
+# directory tree. On cPanel-style Passenger hosting, if that tree sits
+# inside the app directory itself, Passenger's file-change watcher can
+# see it as "the app changed" and recycle the worker mid-job — killing
+# the daemon thread doing the extraction with no exception ever raised
+# (see set_status()/JOBS comments above, and _interrupted_response()
+# below, for what that looks like from the outside).
+#
+# Fix: keep upload/extraction data in a directory that is NOT inside
+# BASE, so nothing Passenger watches for this app changes underneath
+# it. Override with the EVOSTUDY_UPLOAD_ROOT env var if your host's
+# layout needs something else (e.g. cPanel's "Setup Python App" lets
+# you set custom env vars per app). Default: a sibling directory next
+# to the app directory, e.g. if the app lives in
+# ~/myapp/ this becomes ~/myapp_uploads/ — one level up and out of the
+# tree Passenger is watching.
+UPLOAD_ROOT = Path(
+    os.environ.get("EVOSTUDY_UPLOAD_ROOT")
+    or (BASE.parent / f"{BASE.name}_uploads")
+)
+UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # 300 MB
