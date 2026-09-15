@@ -31,7 +31,7 @@ from evostudy.pipeline import (export_csv, export_dashboard, export_json,
                                 export_per_fixture, export_report, load_study)
 
 BASE = Path(__file__).parent
-UPLOAD_ROOT = BASE / "uploads"
+UPLOAD_ROOT = "uploads"
 UPLOAD_ROOT.mkdir(exist_ok=True)
 
 app = Flask(__name__)
